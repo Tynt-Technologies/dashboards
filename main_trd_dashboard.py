@@ -7,7 +7,6 @@ from holoviews import opts
 import os
 import glob
 import numpy as np
-from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout, QComboBox, QPushButton, QLabel
 import sys
 import re
 import holoviews as hv
@@ -15,6 +14,8 @@ import pandas as pd
 from holoviews import opts
 import numpy as np
 from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout, QComboBox, QPushButton, QLabel
+from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout, QComboBox, QPushButton, QLabel, QCheckBox, QScrollArea, QFormLayout
+from psycopg2 import sql
 import sys
 from pathlib import Path
 import re
@@ -29,22 +30,82 @@ pn.extension()
 " ################### TRD SPECIFIC PANEL FUNCTIONS ########################## "
 
 " ######################################## START GUIS ########################################################## "
-def get_user_input():
-    # Create a QApplication instance
+def create_dynamic_dialog(trds_df, conn, cursor):
+    # Create the application and the main window
     app = QApplication([])
-
-    # Create a QWidget as the main window
     window = QWidget()
+    window.setWindowTitle("Dynamic Dropdown Example")
 
-    # Use QInputDialog to get user input
-    user_input, ok = QInputDialog.getText(window, 'Input', 'Please enter a string:')
+    # Create a layout for the main window
+    main_layout = QVBoxLayout(window)
 
-    # Check if the user pressed OK
-    if ok:
-        print(f"You entered: {user_input}")
+    # Label and first dropdown
+    label = QLabel("Select a TRD Name:")
+    main_layout.addWidget(label)
 
-    return user_input
+    first_dropdown = QComboBox()
+    first_dropdown.addItems(reversed(trds_df['trd_name'].values)) 
+    main_layout.addWidget(first_dropdown)
 
+    # Create a scroll area for checkboxes
+    scroll_area = QScrollArea()
+    checkbox_widget = QWidget()
+    checkbox_layout = QVBoxLayout(checkbox_widget)
+    checkbox_widget.setLayout(checkbox_layout)
+    scroll_area.setWidget(checkbox_widget)
+    scroll_area.setWidgetResizable(True)
+    main_layout.addWidget(scroll_area)
+
+    # Function to update checkboxes based on the first dropdown selection
+    def update_checkboxes():
+        # Clear previous checkboxes
+        for i in reversed(range(checkbox_layout.count())):
+            checkbox_layout.itemAt(i).widget().setParent(None)
+        
+        category = first_dropdown.currentText()
+        matching_ids = search_trd_name(trds_df, category)
+        trd_id = matching_ids[0]
+        trd_devices = get_trd_devices(conn, cursor, trd_id)
+        device_list = trd_devices['device_name'].values  # Assuming trd_devices has 'device_name' column
+
+        for device in device_list:
+            checkbox = QCheckBox(device)
+            checkbox.setChecked(True)
+            checkbox_layout.addWidget(checkbox)
+
+    # Connect the first dropdown's change event to the update function
+    first_dropdown.currentTextChanged.connect(update_checkboxes)
+
+    # Initialize the checkboxes for the first time
+    update_checkboxes()
+
+    # Variables to hold the selection
+    selected_trd_name = None
+    selected_devices = []
+
+    # Function to capture the selections
+    def capture_selections():
+        nonlocal selected_trd_name, selected_devices
+        selected_trd_name = first_dropdown.currentText()
+        selected_devices = [checkbox.text() for checkbox in checkbox_widget.findChildren(QCheckBox) if checkbox.isChecked()]
+        print(f"Selected TRD Name: {selected_trd_name}")
+        print(f"Selected Devices: {selected_devices}")
+        app.quit()  # Close the application
+
+    # Create a button to confirm selection
+    button = QPushButton("OK")
+    button.clicked.connect(capture_selections)
+    main_layout.addWidget(button)
+
+    # Adjust the window size based on the contents
+    window.adjustSize()
+
+    # Show the window and execute the application
+    window.show()
+    app.exec()
+
+    # Return the selections after the window is closed
+    return selected_trd_name, selected_devices
 
 def get_user_input(options):
     """
@@ -307,6 +368,28 @@ def search_trd_name(df, search_string):
     
     return ids
 
+def get_deviceid_devices(conn, cursor, device_ids):
+    if conn and cursor and device_ids:
+        # Create a placeholder string for the number of device_ids
+        placeholders = ', '.join(['%s'] * len(device_ids))
+        
+        # Update SQL query to filter by multiple device_ids
+        sql_query = sql.SQL('''
+            SELECT * 
+            FROM tyntdatabase_device
+            WHERE id IN ({})
+            LIMIT ALL 
+            OFFSET 0;
+        ''').format(sql.SQL(placeholders))
+        
+        # Execute the query with device_ids as the parameters
+        cursor.execute(sql_query, device_ids)
+        devices = cursor.fetchall()
+        column_names = [desc[0] for desc in cursor.description]
+        devices = pd.DataFrame(devices, columns=column_names)
+
+    return devices
+
 def get_trd_devices(conn, cursor, trd_id):
     if conn and cursor:
         # Update SQL query to filter by trd_id
@@ -324,6 +407,24 @@ def get_trd_devices(conn, cursor, trd_id):
         devices = pd.DataFrame(devices, columns=column_names)
 
     return devices
+
+
+def get_device_with_related_electrolyte(conn, cursor, device_id):
+    # Query to get the device
+    cursor.execute("SELECT * FROM device_device WHERE id = %s", [device_id])
+    device = cursor.fetchone()
+
+    # Query to get related WorkingElectrodeGlassBatch objects
+    cursor.execute('''
+        SELECT weg.*
+        FROM device_electrolytebatch AS dweg
+        INNER JOIN electrolytebatch AS weg ON dweg.electrolytebatch_id = weg.id
+        WHERE dweg.device_id = %s;
+    ''', [device_id])
+    electrolytes = cursor.fetchall()
+
+    return device, electrolytes
+
 
 def find_directory(base_path, target_directory):
     """
@@ -581,13 +682,8 @@ def make_row_traces(inputs):
 
     for name, group in grouped1:
         # Create a scatter plot for each group
-        scatter_plot = group.hvplot.scatter(size=3, x=x, y=y, label=str(name))
+        scatter_plot = group.hvplot.scatter(size=1, x=x, y=y, label=str(name))
         scatter_plots1.append(scatter_plot)
-        
-        if len(data[color_col1].unique()) > 1: 
-            # ISSUES WITH FIRST AND LAST PTS IN LINES CONNECTING WHEN ONLY HAVE ONE ITEM TO GROUP BY
-            line_plot = group.hvplot.line(x=x, y=y, label=str(name))
-            line_plots1.append(line_plot)
 
     # Combine scatter and line plots into an overlay
     plot1 = hv.Overlay(scatter_plots1 + line_plots1).opts(
@@ -717,7 +813,7 @@ def crop_image(image_path, crop_box):
         return buffer.getvalue()
 
 
-def create_dashboard(row1_inputs, row2_inputs, trd_name, trd_devices_df, photo_paths):
+def create_dashboard(row1_inputs, row2_inputs, row3_inputs, row4_inputs, trd_name, trd_devices_df, photo_paths, selected_device_list, cv_image_path, electrolyte_batches):
     """
     Create an interactive line plot with color based on a column.
 
@@ -736,6 +832,9 @@ def create_dashboard(row1_inputs, row2_inputs, trd_name, trd_devices_df, photo_p
 
     r1p1, r1p1_bokeh, r1p2, r1p2_bokeh = make_row_traces(row1_inputs)
     r2p1,  r2p2 = make_row_box(row2_inputs)
+    r3p1,  r3p2 = make_row_box(row3_inputs)
+    r4p1,  r4p2 = make_row_box(row4_inputs)
+    
 
     custom_css = """
     .bk-root .bk.pn-Column {
@@ -771,6 +870,14 @@ def create_dashboard(row1_inputs, row2_inputs, trd_name, trd_devices_df, photo_p
     """
 
     title_text = f"# Dashboard for {trd_name}"
+
+    cv_formulation_title = f"CV for Formulation: {electrolyte_batches}"
+    cv_image_pane = pn.pane.Image(cv_image_path, width=400, height=300)
+
+    # Header for the selected devices report
+    header = "## Selected Devices to Plot:"
+    bullet_points = "\n".join([f"- {device}" for device in selected_device_list])
+    report_markdown = f"{header}\n\n{bullet_points}"
 
     # HTML Table with Device ID, Notes, and Shorted Status
     device_list = trd_devices_df['device_name'].values
@@ -816,7 +923,16 @@ def create_dashboard(row1_inputs, row2_inputs, trd_name, trd_devices_df, photo_p
                 'font-weight': 'bold'               # Set font weight
             }
         ),
-        pn.pane.HTML(table_html),
+        pn.Row(
+            pn.Column(
+                pn.pane.Markdown('All Devices in TRD:', style={'color': '#90EE90', 'font-size': '24px'}),
+                pn.pane.HTML(table_html)),  # HTML table on the left
+            pn.Column(
+                pn.pane.Markdown(cv_formulation_title, style={'color': '#90EE90', 'font-size': '24px'}),
+                cv_image_pane
+            )  # Column with title and image on the right
+        ),
+        pn.pane.Markdown(report_markdown), 
         pn.Row(
             pn.Column(
                 pn.pane.Markdown("## Check-In Current Traces colored by Cycle", style={'color': '#90EE90'}),
@@ -845,6 +961,36 @@ def create_dashboard(row1_inputs, row2_inputs, trd_name, trd_devices_df, photo_p
                 pn.pane.Markdown("## Check-In Max Current by Cycle", style={'color': '#90EE90'}),
                 pn.pane.Markdown("This section pulls summary echem data from the database."),
                 r2p2, 
+                #title
+            )
+        ),
+        pn.Row(  # Duplicated row
+            pn.Column(
+                pn.pane.Markdown("## Check-In Coulombic Efficiency", style={'color': '#90EE90'}),
+                pn.pane.Markdown("This section pulls summary echem data from the database."),
+                r3p1, 
+                #title
+            ),
+            pn.Spacer(width=20),
+            pn.Column(
+                pn.pane.Markdown("## Check-In Coulombic Efficiency", style={'color': '#90EE90'}),
+                pn.pane.Markdown("This section pulls summary echem data from the database."),
+                r3p2, 
+                #title
+            )
+        ),
+        pn.Row(  # Duplicated row
+            pn.Column(
+                pn.pane.Markdown("## Check-In Charge to 10% Transmission", style={'color': '#90EE90'}),
+                pn.pane.Markdown("This section pulls summary echem data from the database."),
+                r4p1, 
+                #title
+            ),
+            pn.Spacer(width=20),
+            pn.Column(
+                pn.pane.Markdown("## Check-In Charge to 10% Transmission", style={'color': '#90EE90'}),
+                pn.pane.Markdown("This section pulls summary echem data from the database."),
+                r4p2, 
                 #title
             )
         ),
@@ -889,12 +1035,17 @@ def main():
     all_trds_list = reversed(all_trds_df['trd_name'].values)
     print(all_trds_df.columns)
     # options = ['TRD0492', 'TRD0482', 'TRD0443', 'TRD0479', 'TRD0497']
-    options = all_trds_list
-    search_string = get_user_input(options)
-    print(f"Selected option: {search_string}")
+    #options = all_trds_list
+    #search_string = get_user_input(options)
+    #print(f"Selected option: {search_string}")
 
+    selected_trd_name, selected_devices = create_dynamic_dialog(all_trds_df, conn, cursor)
+    print(f"Selected TRD: {selected_trd_name}")
+    print(f"Selected Devices: {selected_devices}")
+
+    search_string = selected_trd_name
     # search_string = 'TRD0492'
-    if search_string:
+    if search_string and selected_devices:
         print(f"Search String Entered: {search_string}")
 
         tables = get_all_tables(conn, cursor)
@@ -907,20 +1058,28 @@ def main():
         trds_df = get_trds(conn, cursor)
         # Search for an exact match in the database table
         # search_string = 'TRD0492'
-
         matching_ids = search_trd_name(trds_df, search_string)
-        print("Matching IDs:", matching_ids[0])
         trd_id = matching_ids[0]
         trd_devices = get_trd_devices(conn, cursor, trd_id)
         print(trd_devices.columns)
+
+        # Get list of IDs for the specified device names
+        device_id_list = trd_devices.loc[trd_devices['device_name'].isin(selected_devices), 'id'].tolist()
+        print('IDs corresponding to selected devices: ', device_id_list)
         # 'id', 'manufacture_date', 'notes', 'device_name', 'shorted', 'tbl_id',
         #'trd_id', 'baseline_version_id', 'route_id', 'jmp_label',
        #'device_thickness', 'electrolyte_thickness', 'leaked', 'other_failure',
        #'other_failure_description', 'cv_filename']
-        device_id_list = trd_devices['id'].values
-        device_list = trd_devices['device_name'].values
+        #device_id_list = trd_devices['id'].values
+        device_list = selected_devices
         print('device list: ', device_id_list)
 
+        # formulation_batch = get_formulation_batch(conn, cursor, device_id_list)
+        # formulation_id = get_formulation_id(device_list[0])
+        current_directory = os.getcwd()
+        cv_image_path = os.path.join(current_directory, '/figures/no_initial_photo_available.jpg')
+
+        device_df = get_deviceid_devices(conn, cursor, device_id_list)
 
         trd_eccheckins = get_trd_eccheckins(conn, cursor, device_id_list)
         path_list = trd_eccheckins['server_path'].values # WHY WOULD THERE BE NONE VALS HERE?
@@ -988,9 +1147,15 @@ def main():
 
         trd_name = search_string
 
+        electrolytes = 'unrecorded'
+        # device, electrolytes = get_device_with_related_electrolyte(conn, cursor, device_id_list[0])  #### IN PROGRESS
+
+
         plot1_inputs = (final_df, 'Time', 'Current (mA)', 'cycle', 'id', 'Current vs Time')
         plot2_inputs = (trd_eccheckins, 'cycle_number', 'tint_max_current', 'device_id', 'tint_max_current_time', 'Maximum/Nucleation Current vs Cycle')
-        dashboard = create_dashboard(plot1_inputs, plot2_inputs, trd_name, trd_devices, photo_paths)
+        plot3_inputs = (trd_eccheckins, 'cycle_number', 'coulombic_efficiency', 'device_id', 'charge_in', 'Coulombic Efficiency vs Cycle')
+        plot4_inputs = (trd_eccheckins, 'cycle_number', 'tint_charge_a', 'device_id', 'charge_in', 'Charge to 10% vs Cycle')
+        dashboard = create_dashboard(plot1_inputs, plot2_inputs, plot3_inputs, plot4_inputs, trd_name, trd_devices, photo_paths, device_list, cv_image_path, electrolytes)
         #Index(['id', 'measurement_date', 'ec_check_in_file', 'device_id',
        #'bleach_time', 'bleach_voltage', 'coulombic_efficiency', 'cycle_number',
        #'tint_time', 'tint_voltage', 'importData', 'bleach_final_current',
@@ -1004,5 +1169,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
 
 
