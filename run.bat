@@ -1,0 +1,2 @@
+source dashboard_venv/bin/activate
+python tynt_panel_trd.py
