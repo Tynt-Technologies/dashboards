@@ -429,3 +429,5 @@ def get_all_file_paths(folder_path):
         print(f"Error accessing folder {folder_path}: {e}")
 
     return file_paths
+
+

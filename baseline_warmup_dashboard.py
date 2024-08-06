@@ -23,6 +23,7 @@ import panel as pn
 from PIL import Image
 import io
 from scripts.tynt_panel_trd_functions import *
+from scripts.tynt_panel_baseline_functions import *
 
 hv.extension('bokeh')
 pn.extension()
@@ -34,7 +35,7 @@ def create_dynamic_dialog(trds_df, conn, cursor):
     # Create the application and the main window
     app = QApplication([])
     window = QWidget()
-    window.setWindowTitle("Select TRD and Devices to Plot")
+    window.setWindowTitle("Dynamic Dropdown Example")
 
     # Create a layout for the main window
     main_layout = QVBoxLayout(window)
@@ -667,6 +668,18 @@ from holoviews import opts
 
 pn.extension()
 
+def make_single_plot(data, x, y, color_col1, title):
+    data[color_col1] = data[color_col1].astype(str)
+    # Create plots for the first color column
+    grouped1 = data.groupby(color_col1)
+    plots1 = []
+    scatter_plots1 = []
+    line_plots1 = []
+
+    for name, group in grouped1:
+        # Create a scatter plot for each group
+        scatter_plot = group.hvplot.scatter(size=1, x=x, y=y, label=str(name))
+        scatter_plots1.append(scatter_plot)
 
 
 def make_row_traces(inputs):
@@ -1173,6 +1186,196 @@ def main():
         print("No search string entered. Exiting.")
 
 if __name__ == "__main__":
-    main()
+    conn, cursor = connect_to_local()
+    all_baselines_df = get_baselines(conn, cursor)
+    print(all_baselines_df)
+    all_baselines_list = reversed(all_baselines_df['baseline_version'].values)
+    print(all_baselines_df.columns)
+
+    # category = 'OBL3-Contender2'
+    selected_baseline_name, selected_devices = create_dynamic_baseline_dialog(all_baselines_df, conn, cursor)
+    print(f"Selected Baseline Version: {selected_baseline_name}")
+    print(f"Selected Devices: {selected_devices}")
+
+    search_string = selected_baseline_name
+
+    if search_string and selected_devices:
+        print(f"Search String Entered: {search_string}")
+        # Get notes
+        sub_df = all_baselines_df[all_baselines_df['baseline_version'] == search_string]
+        notes_string = sub_df['notes'].values[0]
+        # Get ID and Devices
+        matching_ids = search_baseline_name(all_baselines_df, search_string)
+        baseline_id = matching_ids[0]
+        baseline_devices = get_baseline_devices(conn, cursor, baseline_id)
+        # Get list of IDs for the specified device names
+        device_id_list = baseline_devices.loc[baseline_devices['device_name'].isin(selected_devices), 'id'].tolist()
+        print('IDs corresponding to selected devices: ', device_id_list)
+        device_list = selected_devices
+        print('device list: ', device_id_list)
+
+        current_directory = os.getcwd()
+        # cv_image_path = os.path.join(current_directory, '/figures/no_initial_photo_available.jpg')
+
+        baseline_eccheckins = get_trd_eccheckins(conn, cursor, device_id_list)
+        path_list = baseline_eccheckins['server_path'].values 
+        path_list = [item for item in path_list if item is not None]
+        print('old path list: ', path_list)
+
+        baseline_warmups = get_baseline_warmups(conn, cursor, device_id_list)
+        warmup_path_list = baseline_warmups['server_path'].values 
+        warmup_path_list = [item for item in warmup_path_list if item is not None]
+        print('old path list: ', warmup_path_list)
+
+        unique_dirs = extract_unique_parent_dirs(path_list)
+        print(unique_dirs)
+
+
+
+    table_html = """
+    <table style="width: 100%; border-collapse: collapse; margin: 20px 0; font-family:BlinkMacSystemFont; font-size: 12px; color: #FFFFFF;">
+        <thead>
+            <tr style="background-color: #00564a;">
+                <th style="padding: 10px; text-align: left; border: 1px solid #ddd; font-weight: bold;">Device ID</th>
+                <th style="padding: 10px; text-align: left; border: 1px solid #ddd; font-weight: bold;">Device Shorted?</th>
+                <th style="padding: 10px; text-align: left; border: 1px solid #ddd; font-weight: bold;">Device Notes</th>
+            </tr>
+        </thead>
+        <tbody>
+    """
+    for row in range(len(baseline_devices)):
+        table_html += f"""
+        <tr style="background-color: #00564a;">
+            <td style="padding: 10px; text-align: left; border: 1px solid #ddd;">{baseline_devices['device_name'].iloc[row]}</td>
+            <td style="padding: 10px; text-align: left; border: 1px solid #ddd;">{baseline_devices['shorted'].iloc[row]}</td>
+            <td style="padding: 10px; text-align: left; border: 1px solid #ddd;">{baseline_devices['notes'].iloc[row]}</td>
+        </tr>
+        """
+    table_html += """
+        </tbody>
+    </table>
+    """
+
+    import panel as pn
+    from PIL import Image
+    import os
+
+    # Define the directory where your images are stored
+    image_dir ='/Users/sarahpearce/Library/CloudStorage/GoogleDrive-sarah@tynt.io/Shared drives/Data/Devices/2024/07/20240703/20240703_PB_4172/precycle1/pictures'
+    photo_checkin_crop_box = (450, 1200, 2400, 3300)
+    image_paths = [os.path.join(image_dir, fname) for fname in sorted(os.listdir(image_dir)) if fname.endswith(('.png', '.jpg', '.jpeg', '.gif'))]
+    print(image_paths)
+    # Function to load and display an image based on the slider value
+    
+    file_path = '/Users/sarahpearce/Library/CloudStorage/GoogleDrive-sarah@tynt.io/Shared drives/Data/Devices/2024/07/20240703/20240703_PB_4172/precycle1/20240703_PB_4172_precycle1.tyntEC'
+    photo_step_descriptions = photo_step_description(file_path)
+    # Print results
+    for result in photo_step_descriptions:
+        print('!!!', result)
+    
+    # Get full schedule and plot EC curve with the photos
+    formatted_schedule, combined_plot = plot_data_and_print_schedule(file_path)
+    print(formatted_schedule)
+
+    def get_image_and_description(index, image_paths, descriptions):
+        if index < len(image_paths):
+            image = crop_image(image_paths[index], photo_checkin_crop_box)
+            description = descriptions[index]
+            return pn.Column(
+                pn.Row(decrement_button, slider, increment_button),
+                pn.pane.Image(image, width=600, height=400, align='start'),
+                pn.pane.Markdown(description),
+            )
+        return pn.pane.HTML("No content available")
+
+    '###### DASHBOARD ######### '
+    
+    logo_path = os.path.join(os.getcwd(), 'figures', 'tynt_logo.png')
+
+    # Package details of the check-in schedule
+    schedule_and_plot_pane = pn.Column(
+        pn.pane.Markdown('### Schedule: \n' + formatted_schedule),
+        pn.pane.Markdown('### Corresponding EC file:'),
+        combined_plot)
+    # Create a slider widget
+    slider = pn.widgets.IntSlider(name='Check-in Photo #', start=0, end=len(image_paths) - 1, step=1)
+    # Bind the slider to the function with additional parameters
+    image_pane = pn.bind(get_image_and_description, slider, image_paths, photo_step_descriptions)
+    # Define button callbacks to adjust slider value
+    def increment_slider(event):
+        slider.value = min(slider.end, slider.value + 1)
+
+    def decrement_slider(event):
+        slider.value = max(slider.start, slider.value - 1)
+
+    # Create functional arrow buttons
+    increment_button = pn.widgets.Button(name="▶", button_type="primary")
+    decrement_button = pn.widgets.Button(name="◀", button_type="primary")
+
+    # Attach callbacks to buttons
+    increment_button.on_click(increment_slider)
+    decrement_button.on_click(decrement_slider)
+
+
+    # Define the main content area
+    main_content = pn.Column(
+        pn.Column('## All Devices in Baseline Run:', pn.pane.HTML(table_html),),
+        pn.Column('## Warmup Data', pn.Row(image_pane, schedule_and_plot_pane),),
+        pn.Column('## Cycling Data',)
+    )
+
+    section1 = pn.Column('## All Devices in Baseline Run:', pn.pane.HTML(table_html),)
+    section2 = pn.Column('## Warmup Data', pn.Row(image_pane, schedule_and_plot_pane),)
+    section3 = pn.Column('## Cycling Data',)
+    section4 = pn.Column('## Summary Values from Database',)
+
+    main_content = pn.Tabs(
+        ('Devices', section1),
+        ('Warmup Data', section2),
+        ('Cycling Data', section3),
+        ('JMP Summary Plots', section4)
+    )
+    
+    # Create buttons in the sidebar to navigate to each section
+    button1 = pn.widgets.Button(name='Go to Device Details', button_type='primary')
+    button2 = pn.widgets.Button(name='Go to Warmup Data', button_type='primary')
+    button3 = pn.widgets.Button(name='Go to Raw Cycling Data', button_type='primary')
+    button4 = pn.widgets.Button(name='Go to Summarized Cycling Data', button_type='primary')
+    # Define callback functions for buttons
+    def go_to_section1(event):
+        main_content.active = 0
+    def go_to_section2(event):
+        main_content.active = 1
+    def go_to_section3(event):
+        main_content.active = 2
+    def go_to_section4(event):
+        main_content.active = 3
+    # Attach callbacks to buttons
+    button1.on_click(go_to_section1)
+    button2.on_click(go_to_section2)
+    button3.on_click(go_to_section3)
+    button4.on_click(go_to_section4)
+
+    # Define the content for the sidebar
+    sidebar = pn.Column(
+        pn.pane.PNG(logo_path, width=150, height=100),
+            pn.pane.Markdown("### Description of Baseline Run: "),
+            pn.pane.Markdown('Name: ' + search_string), 
+            pn.pane.Markdown("Database Notes: " + notes_string),  
+            pn.Column(button1, button2, button3, button4)
+    )
+
+    template = pn.template.FastListTemplate(
+        title='Baseline Reporting Dashboard',
+        sidebar=sidebar,
+        main=main_content,
+        accent_base_color="#00564a",
+        header_background="#00564a",
+    )
+    template.show()
+    
+
+
+main()
 
 
