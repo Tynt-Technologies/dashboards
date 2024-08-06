@@ -34,9 +34,47 @@ def create_dynamic_dialog(trds_df, conn, cursor):
     # Create the application and the main window
     app = QApplication([])
     window = QWidget()
+    window.setWindowTitle("Select TRD and Devices to Plot")
 
-    # Use QInputDialog to get user input
-    user_input, ok = QInputDialog.getText(window, 'Input', 'Please enter a string:')
+    # Create a layout for the main window
+    main_layout = QVBoxLayout(window)
+
+    # Label and first dropdown
+    label = QLabel("Select a TRD Name:")
+    main_layout.addWidget(label)
+
+    first_dropdown = QComboBox()
+    first_dropdown.addItems(reversed(trds_df['trd_name'].values)) 
+    main_layout.addWidget(first_dropdown)
+
+    # Create a scroll area for checkboxes
+    scroll_area = QScrollArea()
+    checkbox_widget = QWidget()
+    checkbox_layout = QVBoxLayout(checkbox_widget)
+    checkbox_widget.setLayout(checkbox_layout)
+    scroll_area.setWidget(checkbox_widget)
+    scroll_area.setWidgetResizable(True)
+    main_layout.addWidget(scroll_area)
+
+    # Function to update checkboxes based on the first dropdown selection
+    def update_checkboxes():
+        # Clear previous checkboxes
+        for i in reversed(range(checkbox_layout.count())):
+            checkbox_layout.itemAt(i).widget().setParent(None)
+        
+        category = first_dropdown.currentText()
+        matching_ids = search_trd_name(trds_df, category)
+        trd_id = matching_ids[0]
+        trd_devices = get_trd_devices(conn, cursor, trd_id)
+        device_list = trd_devices['device_name'].values  # Assuming trd_devices has 'device_name' column
+
+        for device in device_list:
+            checkbox = QCheckBox(device)
+            checkbox.setChecked(True)
+            checkbox_layout.addWidget(checkbox)
+
+    # Connect the first dropdown's change event to the update function
+    first_dropdown.currentTextChanged.connect(update_checkboxes)
 
     # Initialize the checkboxes for the first time
     update_checkboxes()
@@ -1136,8 +1174,5 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
 
 
