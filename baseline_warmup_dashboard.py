@@ -24,6 +24,10 @@ from PIL import Image
 import io
 from scripts.tynt_panel_trd_functions import *
 from scripts.tynt_panel_baseline_functions import *
+from scripts.html_functions import *
+import panel as pn
+from PIL import Image
+import os
 
 hv.extension('bokeh')
 pn.extension()
@@ -828,364 +832,11 @@ def crop_image(image_path, crop_box):
         return buffer.getvalue()
 
 
-def create_dashboard(row1_inputs, row2_inputs, row3_inputs, row4_inputs, trd_name, trd_devices_df, photo_paths, selected_device_list, cv_image_path, electrolyte_batches):
-    """
-    Create an interactive line plot with color based on a column.
-
-    Parameters:
-    - data: pandas DataFrame with the data to plot
-    - x: column name for x-axis
-    - y: column name for y-axis
-    - color_col: column name for coloring the lines
-    - title: title of the plot
-    """
-    pn.config.theme = 'dark' 
-
-    # '/Users/sarahpearce/Library/CloudStorage/GoogleDrive-sarah@tynt.io/Shared drives/Data/Devices/2024/06/20240626/20240626_DB_4126/cycle0/pictures/20240626_DB_4126_cycle0_PhotoNumber-1_StepNumber-1_StepTime-le-1s.jpg',
-
-
-
-    r1p1, r1p1_bokeh, r1p2, r1p2_bokeh = make_row_traces(row1_inputs)
-    r2p1,  r2p2 = make_row_box(row2_inputs)
-    r3p1,  r3p2 = make_row_box(row3_inputs)
-    r4p1,  r4p2 = make_row_box(row4_inputs)
-    
-
-    custom_css = """
-    .bk-root .bk.pn-Column {
-        background-color: rgba(0, 128, 0, 0.3) !important;
-        border-radius: 8px;
-        padding: 20px;
-        box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
-    }
-    .bk-root .bk.pn-Row {
-        background-color: rgba(0, 128, 0, 0.3) !important;
-    }
-    .pn-Markdown {
-        color: #333;
-        font-family: 'Helvetica, Arial, sans-serif';
-    }
-    h1, h2, h3 {
-        color: #555;
-    }
-    table {
-        width: 100%;
-        border-collapse: collapse;
-        margin: 20px 0;
-    }
-    th, td {
-        padding: 10px;
-        text-align: left;
-        border: 1px solid #ddd;
-    }
-    th {
-        background-color: #f2f2f2;
-    }
-    tr:hover {background-color: #f5f5f5;}
-    """
-
-    title_text = f"# Dashboard for {trd_name}"
-
-    cv_formulation_title = f"CV for Formulation: {electrolyte_batches}"
-    cv_image_pane = pn.pane.Image(cv_image_path, width=400, height=300)
-
-    # Header for the selected devices report
-    header = "## Selected Devices to Plot:"
-    bullet_points = "\n".join([f"- {device}" for device in selected_device_list])
-    report_markdown = f"{header}\n\n{bullet_points}"
-
-    # HTML Table with Device ID, Notes, and Shorted Status
-    device_list = trd_devices_df['device_name'].values
-    devices_text = "\n".join(device_list)
-    # HTML Table with inline styling
-    table_html = """
-    <table style="width: 100%; border-collapse: collapse; margin: 20px 0; font-family:BlinkMacSystemFont; font-size: 12px; color: #FFFFFF;">
-        <thead>
-            <tr style="background-color: #00564a;">
-                <th style="padding: 10px; text-align: left; border: 1px solid #ddd; font-weight: bold;">Device ID</th>
-                <th style="padding: 10px; text-align: left; border: 1px solid #ddd; font-weight: bold;">Device Shorted?</th>
-                <th style="padding: 10px; text-align: left; border: 1px solid #ddd; font-weight: bold;">Device Notes</th>
-            </tr>
-        </thead>
-        <tbody>
-    """
-    for row in range(len(trd_devices_df)):
-        table_html += f"""
-        <tr style="background-color: #00564a;">
-            <td style="padding: 10px; text-align: left; border: 1px solid #ddd;">{trd_devices_df['device_name'].iloc[row]}</td>
-            <td style="padding: 10px; text-align: left; border: 1px solid #ddd;">{trd_devices_df['shorted'].iloc[row]}</td>
-            <td style="padding: 10px; text-align: left; border: 1px solid #ddd;">{trd_devices_df['notes'].iloc[row]}</td>
-        </tr>
-        """
-    table_html += """
-        </tbody>
-    </table>
-    """
-    ######## END INTRO TABLE HTML ############
-    print(photo_paths)
-    photo_checkin_crop_box = (450, 1200, 2400, 3300)
-    image_panes = [pn.pane.Image(crop_image(path, photo_checkin_crop_box), width=400, height=300) for path in photo_paths]
-
-    dynamic_title = f"# Dashboard for {trd_name}"
-    dashboard = pn.Column(
-        pn.pane.HTML(f"<style>{custom_css}</style>"),
-        pn.pane.Markdown(
-            dynamic_title, 
-            style={
-                'color': '#00564a',
-                'font-family': 'BlinkMacSystemFont',  # Set font family
-                'font-size': '24px',                # Set font size
-                'font-weight': 'bold'               # Set font weight
-            }
-        ),
-        pn.Row(
-            pn.Column(
-                pn.pane.Markdown('All Devices in TRD:', style={'color': '#90EE90', 'font-size': '24px'}),
-                pn.pane.HTML(table_html)),  # HTML table on the left
-            pn.Column(
-                pn.pane.Markdown(cv_formulation_title, style={'color': '#90EE90', 'font-size': '24px'}),
-                cv_image_pane
-            )  # Column with title and image on the right
-        ),
-        pn.pane.Markdown(report_markdown), 
-        pn.Row(
-            pn.Column(
-                pn.pane.Markdown("## Check-In Current Traces colored by Cycle", style={'color': '#90EE90'}),
-                pn.pane.Markdown("This section shows raw echem data over time colored by cycle."),
-                r1p1, 
-                #title
-            ),
-            pn.Spacer(width=20),
-            pn.Column(
-                pn.pane.Markdown("## Check-In Current Traces colored by Device ID", style={'color': '#90EE90'}),
-                pn.pane.Markdown("This section shows raw echem data over time colored by device."),
-                r1p2, 
-                #title
-            )
-        ),
-        pn.Spacer(height=20),
-        pn.Row(  # Duplicated row
-            pn.Column(
-                pn.pane.Markdown("## Check-In Max Current by Cycle", style={'color': '#90EE90'}),
-                pn.pane.Markdown("This section pulls summary echem data from the database."),
-                r2p1, 
-                #title
-            ),
-            pn.Spacer(width=20),
-            pn.Column(
-                pn.pane.Markdown("## Check-In Max Current by Cycle", style={'color': '#90EE90'}),
-                pn.pane.Markdown("This section pulls summary echem data from the database."),
-                r2p2, 
-                #title
-            )
-        ),
-        pn.Row(  # Duplicated row
-            pn.Column(
-                pn.pane.Markdown("## Check-In Coulombic Efficiency", style={'color': '#90EE90'}),
-                pn.pane.Markdown("This section pulls summary echem data from the database."),
-                r3p1, 
-                #title
-            ),
-            pn.Spacer(width=20),
-            pn.Column(
-                pn.pane.Markdown("## Check-In Coulombic Efficiency", style={'color': '#90EE90'}),
-                pn.pane.Markdown("This section pulls summary echem data from the database."),
-                r3p2, 
-                #title
-            )
-        ),
-        pn.Row(  # Duplicated row
-            pn.Column(
-                pn.pane.Markdown("## Check-In Charge to 10% Transmission", style={'color': '#90EE90'}),
-                pn.pane.Markdown("This section pulls summary echem data from the database."),
-                r4p1, 
-                #title
-            ),
-            pn.Spacer(width=20),
-            pn.Column(
-                pn.pane.Markdown("## Check-In Charge to 10% Transmission", style={'color': '#90EE90'}),
-                pn.pane.Markdown("This section pulls summary echem data from the database."),
-                r4p2, 
-                #title
-            )
-        ),
-        pn.Spacer(height=20),
-        # Arrange images in a row
-        pn.Row(
-            pn.pane.Markdown("## Example Photos", style={'color': '#90EE90'}),
-            pn.pane.Markdown("This section shows clear state photos before warmup cycling."),
-        ),
-        pn.Row(*image_panes),
-        pn.Spacer(height=20),
-        pn.pane.Markdown("### Additional Information", style={'color': '#e6ffe60'}),
-        pn.pane.Markdown("Haven't decided what additional information goes here. Likely formulation details.")
-    )
-
-    return dashboard
-
-# Example usage (assuming you have a pandas DataFrame `df` with appropriate data):
-# dashboard = create_plot(df, x='date', y='value', color_col='category', title='My Dashboard')
-# dashboard.show()
-
-
-
-# Example usage (assuming you have a pandas DataFrame `df` with appropriate data):
-# dashboard = create_plot(df, x='date', y='value', color_col='category', title='My Dashboard')
-# dashboard.show()
-
-
-# Example usage (assuming you have a pandas DataFrame `df` with appropriate data):
-# dashboard = create_plot(df, x='date', y='value', color_col='category', title='My Dashboard')
-# dashboard.show()
-
-
 
 
 " ####################################### CONNECT AND GET DATA ######################################### "
 
 def main():
-    #search_string = get_user_input()
-    conn, cursor = connect_to_local()
-    all_trds_df = get_trds(conn, cursor)
-    all_trds_list = reversed(all_trds_df['trd_name'].values)
-    print(all_trds_df.columns)
-    # options = ['TRD0492', 'TRD0482', 'TRD0443', 'TRD0479', 'TRD0497']
-    #options = all_trds_list
-    #search_string = get_user_input(options)
-    #print(f"Selected option: {search_string}")
-
-    selected_trd_name, selected_devices = create_dynamic_dialog(all_trds_df, conn, cursor)
-    print(f"Selected TRD: {selected_trd_name}")
-    print(f"Selected Devices: {selected_devices}")
-
-    search_string = selected_trd_name
-    # search_string = 'TRD0492'
-    if search_string and selected_devices:
-        print(f"Search String Entered: {search_string}")
-
-        tables = get_all_tables(conn, cursor)
-        # print(tables) # for troubleshooting
-        wellplate_tables = get_wellplates(conn, cursor)
-        wellplateca_tables = get_wellplate_CAs(conn, cursor)
-        # print(wellplateca_tables.columns)
-        # devices = get_devices(conn, cursor)
-
-        trds_df = get_trds(conn, cursor)
-        # Search for an exact match in the database table
-        # search_string = 'TRD0492'
-        matching_ids = search_trd_name(trds_df, search_string)
-        trd_id = matching_ids[0]
-        trd_devices = get_trd_devices(conn, cursor, trd_id)
-        print(trd_devices.columns)
-
-        # Get list of IDs for the specified device names
-        device_id_list = trd_devices.loc[trd_devices['device_name'].isin(selected_devices), 'id'].tolist()
-        print('IDs corresponding to selected devices: ', device_id_list)
-        # 'id', 'manufacture_date', 'notes', 'device_name', 'shorted', 'tbl_id',
-        #'trd_id', 'baseline_version_id', 'route_id', 'jmp_label',
-       #'device_thickness', 'electrolyte_thickness', 'leaked', 'other_failure',
-       #'other_failure_description', 'cv_filename']
-        #device_id_list = trd_devices['id'].values
-        device_list = selected_devices
-        print('device list: ', device_id_list)
-
-        # formulation_batch = get_formulation_batch(conn, cursor, device_id_list)
-        # formulation_id = get_formulation_id(device_list[0])
-        current_directory = os.getcwd()
-        cv_image_path = os.path.join(current_directory, '/figures/no_initial_photo_available.jpg')
-
-        device_df = get_deviceid_devices(conn, cursor, device_id_list)
-
-        trd_eccheckins = get_trd_eccheckins(conn, cursor, device_id_list)
-        path_list = trd_eccheckins['server_path'].values # WHY WOULD THERE BE NONE VALS HERE?
-        path_list = [item for item in path_list if item is not None]
-        print('old path list: ', path_list)
-
-        local_paths = get_local_paths(path_list)
-        print('local path list: ', local_paths) 
-
-        # Define the column names
-        columns = ['Time', 'Voltage (V)', 'Current (mA)', 'Charge (C)', 'Step Number',
-           'Programmed Voltage (V)', 'Programmed Current (A)', 'Control Mode',
-           'id', 'cycle']
-        # Create an empty DataFrame with the specified columns
-        final_df = pd.DataFrame(columns=columns)
-        for path in local_paths:
-            ### NEED TO ADD CATCH IF GOOGLE DRIVE FILES (not just folders) ARE DELETED OR NOT CONNECTED PROPERLY!
-            try: 
-                # file = path.split('/')[-1] ### THIS DOESN'T WORK ON WINDOWS 
-                print('!!!!!!!!!!!!!')
-                print(path.split(os.sep))
-                file = path.split(os.sep)[-1]
-                file = file.split('.')[0]
-                id = int(file.split('_')[2])
-                pattern = r'\d+'
-                cycle_string = file.split('_')[3]
-                print(cycle_string)
-                cycle = re.findall(pattern, cycle_string)
-                cycle = int(cycle[0])
-                raw_ec_cycle_data = pd.read_csv(str(path), sep='\t', comment='#', index_col=0)
-                time = pd.to_datetime(raw_ec_cycle_data['Time'], format = '%Y-%m-%d %H:%M:%S.%f')
-                startTime = time[0]
-                time -= startTime
-                time = time.dt.total_seconds()
-                voltage = raw_ec_cycle_data['Voltage (V)']
-                current = raw_ec_cycle_data['Current (A)']
-                current = current*1000 # convert from A to mA
-                raw_ec_cycle_data['Current (mA)'] = current
-                del raw_ec_cycle_data['Current (A)']
-                charge = raw_ec_cycle_data['Charge (C)']
-                raw_ec_cycle_data['Time'] = time
-                raw_ec_cycle_data['id'] = [id]*len(time)
-                raw_ec_cycle_data['cycle'] = [cycle]*len(time)
-
-                print(raw_ec_cycle_data.columns)
-                final_df = pd.concat([final_df, raw_ec_cycle_data], ignore_index=True)
-
-            except Exception:
-                print('\n Error: Unable to locate EC file on drive')
-        print(final_df)
-
-        # GETTING INITIAL PHOTOS
-        try:
-            if not local_paths:
-                raise FileNotFoundError("Example file not found error.")
-            else:
-                photo_path_folder = get_initial_photo_path(local_paths)[0]
-                # Example usage
-                photo_paths = get_all_file_paths(photo_path_folder)
-                print(photo_paths)
-
-        except FileNotFoundError as e:
-            print(e)
-            photo_paths = []
-            path = create_blank_image_with_text('No Initial Photo Available', 'no_initial_photo_available.jpg')
-            photo_paths.append(path)
-            print("Photo unavailable for requested cycle. Created blank image.")
-
-        trd_name = search_string
-
-        electrolytes = 'unrecorded'
-        # device, electrolytes = get_device_with_related_electrolyte(conn, cursor, device_id_list[0])  #### IN PROGRESS
-
-
-        plot1_inputs = (final_df, 'Time', 'Current (mA)', 'cycle', 'id', 'Current vs Time')
-        plot2_inputs = (trd_eccheckins, 'cycle_number', 'tint_max_current', 'device_id', 'tint_max_current_time', 'Maximum/Nucleation Current vs Cycle')
-        plot3_inputs = (trd_eccheckins, 'cycle_number', 'coulombic_efficiency', 'device_id', 'charge_in', 'Coulombic Efficiency vs Cycle')
-        plot4_inputs = (trd_eccheckins, 'cycle_number', 'tint_charge_a', 'device_id', 'charge_in', 'Charge to 10% vs Cycle')
-        dashboard = create_dashboard(plot1_inputs, plot2_inputs, plot3_inputs, plot4_inputs, trd_name, trd_devices, photo_paths, device_list, cv_image_path, electrolytes)
-        #Index(['id', 'measurement_date', 'ec_check_in_file', 'device_id',
-       #'bleach_time', 'bleach_voltage', 'coulombic_efficiency', 'cycle_number',
-       #'tint_time', 'tint_voltage', 'importData', 'bleach_final_current',
-       #'bleach_max_current', 'tint_final_current', 'tint_max_current',
-       #'tint_charge_a', 'tint_charge_b', 'tint_charge_c', 'tint_charge_d',
-       #'charge_in', 'charge_out', 'local_path', 'server_path',
-       #'tint_max_current_time'],
-        dashboard.show()
-    else:
-        print("No search string entered. Exiting.")
-
-if __name__ == "__main__":
     conn, cursor = connect_to_local()
     all_baselines_df = get_baselines(conn, cursor)
     print(all_baselines_df)
@@ -1216,77 +867,454 @@ if __name__ == "__main__":
 
         current_directory = os.getcwd()
         # cv_image_path = os.path.join(current_directory, '/figures/no_initial_photo_available.jpg')
+        # no_data_image_path = os.path.join(current_directory, '/figures/no_data.png')
 
         baseline_eccheckins = get_trd_eccheckins(conn, cursor, device_id_list)
         path_list = baseline_eccheckins['server_path'].values 
         path_list = [item for item in path_list if item is not None]
-        print('old path list: ', path_list)
+        print('old ALL path list: ', path_list)
+        local_all_paths = get_local_paths(path_list)
+        print('new ALL path list:', local_all_paths)
 
+        # GET THE PARENT DIRECTORIES OF EACH DEVICE
+        unique_dirs = extract_unique_parent_dirs(local_all_paths)
+        #unique_dirs = ['/Users/sarahpearce/Library/CloudStorage/GoogleDrive-sarah@tynt.io/Shared drives/Data/Devices/2024/07/20240703/20240703_PB_4171/']
+        
+        # SET EVERYTHING TO NONE FIRST 
+        keyence_paths = ['None Found']
+        local_warmup_paths = ['None Found']
+        optics_folder_paths = ['In Progress']
+        photo_folder_paths = ['None Found']
+        arbin_paths = ['None Found']
+
+        # GET THE ARBIN PATHS
+        arbin_paths = []
+        for path in unique_dirs:
+            arbin_path = get_all_arbin_folders(path) 
+            arbin_paths.append(arbin_path)
+        print(unique_dirs)
+        print(arbin_paths)
+
+        # GET THE WARMUP PATHS
         baseline_warmups = get_baseline_warmups(conn, cursor, device_id_list)
         warmup_path_list = baseline_warmups['server_path'].values 
         warmup_path_list = [item for item in warmup_path_list if item is not None]
-        print('old path list: ', warmup_path_list)
+        print('old warmup path list: ', warmup_path_list)
+        local_warmup_paths = get_local_paths(warmup_path_list)
+        print('local warmup path list: ', local_warmup_paths) 
 
-        unique_dirs = extract_unique_parent_dirs(path_list)
-        print(unique_dirs)
+        # GET THE WARMUP PHOTO PATHS
+        # Set all warmup values to None before looking for the data
+        warmup_folder_paths = None
+        warmup_ecs_corresponding_to_photos = None
+        if len(unique_dirs) > 0:
+            test = unique_dirs[0]
+
+            all_folders_list = find_folders_recursively(test)
+            photo_folder_paths = find_photo_folder_paths(all_folders_list)
+            
+            cycling_folder_paths = find_cycle_paths(photo_folder_paths)
+            warmup_folder_paths = find_warmup_paths(photo_folder_paths)
+
+            print('Warmup Photo Folders:', warmup_folder_paths)
+            warmup_ecs_corresponding_to_photos = get_corresp_ec_filepaths(warmup_folder_paths)
+            print('Warmup Folder EC files:', warmup_ecs_corresponding_to_photos)
 
 
+        ' ############################# CALLING ALL HTML FUNCTIONS FOR DEVICE OVERVIEW TAB ################### '
+        # adding route_name to baseline devices dataframe
+        routes_df = get_routes(conn, cursor)
+        baseline_devices = get_baseline_devices(conn, cursor, baseline_id)
+        baseline_devices = pd.merge(baseline_devices, routes_df, on='route_id')
 
-    table_html = """
-    <table style="width: 100%; border-collapse: collapse; margin: 20px 0; font-family:BlinkMacSystemFont; font-size: 12px; color: #FFFFFF;">
-        <thead>
-            <tr style="background-color: #00564a;">
-                <th style="padding: 10px; text-align: left; border: 1px solid #ddd; font-weight: bold;">Device ID</th>
-                <th style="padding: 10px; text-align: left; border: 1px solid #ddd; font-weight: bold;">Device Shorted?</th>
-                <th style="padding: 10px; text-align: left; border: 1px solid #ddd; font-weight: bold;">Device Notes</th>
-            </tr>
-        </thead>
-        <tbody>
-    """
-    for row in range(len(baseline_devices)):
-        table_html += f"""
-        <tr style="background-color: #00564a;">
-            <td style="padding: 10px; text-align: left; border: 1px solid #ddd;">{baseline_devices['device_name'].iloc[row]}</td>
-            <td style="padding: 10px; text-align: left; border: 1px solid #ddd;">{baseline_devices['shorted'].iloc[row]}</td>
-            <td style="padding: 10px; text-align: left; border: 1px solid #ddd;">{baseline_devices['notes'].iloc[row]}</td>
-        </tr>
-        """
-    table_html += """
-        </tbody>
-    </table>
-    """
+        table_html = all_devices_table(baseline_devices)
+        # Bullet list of gathered data
+        warmups = local_warmup_paths
+        o_checks = optics_folder_paths
+        p_checks = photo_folder_paths
+        arbin = arbin_paths
+        keyence = keyence_paths
 
-    import panel as pn
-    from PIL import Image
-    import os
+        report_html = generate_devices_report(warmups, o_checks, p_checks, arbin, keyence)
 
-    # Define the directory where your images are stored
-    image_dir ='/Users/sarahpearce/Library/CloudStorage/GoogleDrive-sarah@tynt.io/Shared drives/Data/Devices/2024/07/20240703/20240703_PB_4172/precycle1/pictures'
-    photo_checkin_crop_box = (450, 1200, 2400, 3300)
-    image_paths = [os.path.join(image_dir, fname) for fname in sorted(os.listdir(image_dir)) if fname.endswith(('.png', '.jpg', '.jpeg', '.gif'))]
-    print(image_paths)
-    # Function to load and display an image based on the slider value
-    
-    file_path = '/Users/sarahpearce/Library/CloudStorage/GoogleDrive-sarah@tynt.io/Shared drives/Data/Devices/2024/07/20240703/20240703_PB_4172/precycle1/20240703_PB_4172_precycle1.tyntEC'
-    photo_step_descriptions = photo_step_description(file_path)
-    # Print results
-    for result in photo_step_descriptions:
-        print('!!!', result)
-    
-    # Get full schedule and plot EC curve with the photos
-    formatted_schedule, combined_plot = plot_data_and_print_schedule(file_path)
-    print(formatted_schedule)
+        # final_df = get_all_raw_data(local_all_paths) # local all paths includes only things uploaded to db!!
 
-    def get_image_and_description(index, image_paths, descriptions):
-        if index < len(image_paths):
-            image = crop_image(image_paths[index], photo_checkin_crop_box)
-            description = descriptions[index]
-            return pn.Column(
-                pn.Row(decrement_button, slider, increment_button),
-                pn.pane.Image(image, width=600, height=400, align='start'),
-                pn.pane.Markdown(description),
-            )
-        return pn.pane.HTML("No content available")
+        ' ################### GETTING ACTUAL ARBIN DATA ##################### '
+        arbin_df = get_devices_arbin_checkins(conn, cursor, device_id_list)
+        print('ARBIN CHECKS!!!!!!', arbin_df.columns)
+        single_cycles_df = get_devices_single_cycle_arbin_checkins(conn, cursor, arbin_df)
+        print('ARBIN SINGLE CHECKS!!!!!!', single_cycles_df.columns)
+
+        ' ################### GETTING SINGLE VAL CHECKIN DATA ##################### '
+        checkin_df_dict = get_haze_weight_meshwidth_devicewidth_bubbles_ir_joined(conn, cursor, device_id_list)
+        print(checkin_df_dict)
+
+        unique_dirs = extract_unique_parent_dirs(local_all_paths)
+        print('unique_directories:', unique_dirs)
+            # For warmups, define the photo directories 
+        # If no photos in unique_dirs
+
+
+        # PICTURES #############
+        rows = len(cycling_folder_paths)
+        photo_checkin_crop_box = (450, 1200, 2400, 3300)
+        image_paths = [os.path.join(cycling_folder_paths[0], fname) for fname in sorted(os.listdir(cycling_folder_paths[0])) if fname.endswith(('.png', '.jpg', '.jpeg', '.gif'))]
+        print('FINAL PATHS', image_paths)
+
+        # now want to use warmup_folder_paths and warmup_ecs_corresponding_to_photos 
+        # need as many rows as have paths!!!
+        # EDITING HERE
+        #warmup_photo_rows = len(warmup_folder_paths)
+        #photo_checkin_crop_box = (450, 1200, 2400, 3300)
+        #image_paths = [os.path.join(warmup_folder_paths[0], fname) for fname in sorted(os.listdir(warmup_folder_paths[0])) if fname.endswith(('.png', '.jpg', '.jpeg', '.gif'))]
+        #print('FINAL PATHS', image_paths)
+        #image_panes = [pn.pane.Image(crop_image(path, photo_checkin_crop_box), width=400, height=300) for path in image_paths]
+
+        # Define the directory where your images are stored
+        image_dir ='/Users/sarahpearce/Library/CloudStorage/GoogleDrive-sarah@tynt.io/Shared drives/Data/Devices/2024/07/20240703/20240703_PB_4172/precycle1/pictures'
+        photo_checkin_crop_box = (450, 1200, 2400, 3300) 
+        image_paths = [os.path.join(image_dir, fname) for fname in sorted(os.listdir(image_dir)) if fname.endswith(('.png', '.jpg', '.jpeg', '.gif'))]
+        print('Accessing warmup image paths....', image_paths)
+        # Function to load and display an image based on the slider value
+        
+        file_path = '/Users/sarahpearce/Library/CloudStorage/GoogleDrive-sarah@tynt.io/Shared drives/Data/Devices/2024/07/20240703/20240703_PB_4172/precycle1/20240703_PB_4172_precycle1.tyntEC'
+        #file_path = image_paths[0]
+        photo_step_descriptions = photo_step_description(file_path)
+
+        # Get full schedule and plot EC curve with the photos
+        formatted_schedule, combined_plot = plot_data_and_print_schedule(file_path)
+
+        def get_image_and_description(index, image_paths, descriptions):
+            if index < len(image_paths):
+                image = crop_image(image_paths[index], photo_checkin_crop_box)
+                description = descriptions[index]
+                return pn.Column(
+                    pn.Row(decrement_button, slider, increment_button),
+                    pn.pane.Image(image, width=600, height=400, align='start'),
+                    pn.pane.Markdown(description),
+                )
+            return pn.pane.HTML("No content available")
+
+
+    ' ############################### MAKE ARBIN PLOTS ################################# '
+    # Create all plots
+    arbin_plots_layout = create_single_panel_plot(single_cycles_df)
+
+    ' ############################### MAKE NON-CYCLE CHECKIN PLOTS ################################# '
+    import matplotlib.pyplot as plt
+
+    def create_plot_from_df(checkin_df_dict):
+        plots = {}
+
+        for name, df in checkin_df_dict.items():
+            print(name, df)
+            
+            if name == 'df_bubbleareacheckin':
+                x = df['check_in_age']
+                y = df['check_in_bubblearea']
+                age_units = df['check_in_age_unit'].astype(str)  # Convert to string if needed
+
+            
+                # Create the plot
+                fig, ax = plt.subplots()
+                unique_units = age_units.unique()
+                for unit in unique_units:
+                    unit_mask = age_units == unit
+                    ax.scatter(x[unit_mask], y[unit_mask], label=unit)
+                    
+                # Add labels and legend
+                ax.set_xlabel('Check In Age')
+                ax.set_ylabel('Bubble Area (%)')
+                ax.legend(title='Age Unit')
+                ax.set_title('Device Bubble Area Check-In')
+
+                if not df.empty:
+                    # Adjust y-axis limits
+                    y_min, y_max = y.min(), y.max()
+                    y_range = y_max - y_min
+                    print(y_range)
+                    ax.set_ylim(y_min - 0.15 * y_range, y_max + 0.15 * y_range)
+
+                unique_x = sorted(set(x))
+                avg_y = [np.mean([y[i] for i in range(len(x)) if x[i] == val]) for val in unique_x]
+                table_data = list(zip(unique_x, avg_y))
+                table = plt.table(cellText=table_data, colLabels=['Cycle #', 'Average'], cellLoc='center', loc='bottom', bbox=[0.1, -0.3, 0.8, 0.2])
+                
+                # Save the figure
+                plot_filename = f"{name}.png"
+                fig.savefig(plot_filename, bbox_inches='tight')
+                plt.close(fig)  # Close the figure to free memory
+
+                plots[name] = plot_filename  # Save filename to dictionary
+
+            elif name == 'df_devicethicknesscheckin':
+                x = df['check_in_age']
+                y = df['check_in_bottom_thickness_cm']
+                age_units = df['check_in_age_unit'].astype(str)  # Convert to string if needed
+
+            
+                # Create the plot
+                fig, ax = plt.subplots()
+                unique_units = age_units.unique()
+                for unit in unique_units:
+                    unit_mask = age_units == unit
+                    ax.scatter(x[unit_mask], y[unit_mask], label=unit)
+                    
+                # Add labels and legend
+                ax.set_xlabel('Check In Age')
+                ax.set_ylabel('Bottom Thickness (cm)')
+                ax.legend(title='Age Unit')
+                ax.set_title('Device Thickness Check-In')
+
+
+                if not df.empty:
+                    # Adjust y-axis limits
+                    y_min, y_max = y.min(), y.max()
+                    y_range = y_max - y_min
+                    print(y_range)
+                    ax.set_ylim(y_min - 0.15 * y_range, y_max + 0.15 * y_range)
+
+                unique_x = sorted(set(x))
+                avg_y = [np.mean([y[i] for i in range(len(x)) if x[i] == val]) for val in unique_x]
+                table_data = list(zip(unique_x, avg_y))
+                table = plt.table(cellText=table_data, colLabels=['Cycle #', 'Average'], cellLoc='center', loc='bottom', bbox=[0.1, -0.3, 0.8, 0.2])
+                
+                # Save the figure
+                plot_filename = f"{name}.png"
+                fig.savefig(plot_filename, bbox_inches='tight')
+                plt.close(fig)  # Close the figure to free memory
+
+                plots[name] = plot_filename  # Save filename to dictionary
+
+            elif name == 'df_hazecheckin':
+                x = df['check_in_age']
+                y = df['check_in_haze']
+                age_units = df['check_in_age_unit'].astype(str)  # Convert to string if needed
+
+                # Create the plot
+                fig, ax = plt.subplots()
+                unique_units = age_units.unique()
+
+                for unit in unique_units:
+                    unit_mask = age_units == unit
+                    ax.scatter(x[unit_mask], y[unit_mask], label=unit)
+                    
+                # Add labels and legend
+                ax.set_xlabel('Check In Age')
+                ax.set_ylabel('Haze (%)')
+                ax.legend(title='Age Unit')
+                ax.set_title('Haze Check-In')
+
+                                # Adjust y-axis limits
+
+                if not df.empty:
+                    # Adjust y-axis limits
+                    y_min, y_max = y.min(), y.max()
+                    y_range = y_max - y_min
+                    ax.set_ylim(y_min - 0.15 * y_range, y_max + 0.15 * y_range)
+
+                unique_x = sorted(set(x))
+                avg_y = [np.mean([y[i] for i in range(len(x)) if x[i] == val]) for val in unique_x]
+                table_data = list(zip(unique_x, avg_y))
+                table = plt.table(cellText=table_data, colLabels=['Cycle #', 'Average'], cellLoc='center', loc='bottom', bbox=[0.1, -0.3, 0.8, 0.2])
+                
+                # Save the figure
+                plot_filename = f"{name}.png"
+                fig.savefig(plot_filename, bbox_inches='tight')
+                plt.close(fig)  # Close the figure to free memory
+
+
+                plots[name] = plot_filename  # Save filename to dictionary
+            
+            elif name == 'df_weightcheckin':
+                x = df['check_in_age']
+                y = df['check_in_weight_g']
+                age_units = df['check_in_age_unit'].astype(str)  # Convert to string if needed
+
+                # Create the plot
+                fig, ax = plt.subplots()
+                unique_units = age_units.unique()
+                for unit in unique_units:
+                    unit_mask = age_units == unit
+                    ax.scatter(x[unit_mask], y[unit_mask], label=unit)
+
+                # Add labels and legend
+                ax.set_xlabel('Check In Age')
+                ax.set_ylabel('Weight (g)')
+                ax.legend(title='Age Unit')
+                ax.set_title('Device Weight Check-In')
+
+                if not df.empty:
+                    # Adjust y-axis limits
+                    y_min, y_max = y.min(), y.max()
+                    y_range = y_max - y_min
+                    ax.set_ylim(y_min - 0.15 * y_range, y_max + 0.15 * y_range)
+
+                unique_x = sorted(set(x))
+                avg_y = [np.mean([y[i] for i in range(len(x)) if x[i] == val]) for val in unique_x]
+                table_data = list(zip(unique_x, avg_y))
+                table = plt.table(cellText=table_data, colLabels=['Cycle #', 'Average'], cellLoc='center', loc='bottom', bbox=[0.1, -0.3, 0.8, 0.2])
+
+                # Save the figure
+                plot_filename = f"{name}.png"
+                fig.savefig(plot_filename, bbox_inches='tight')
+                plt.close(fig)  # Close the figure to free memory
+
+                plots[name] = plot_filename  # Save filename to dictionary
+
+            elif name == 'df_meshwidthcheckin':
+                x = df['check_in_age']
+                y = df['check_in_width_um']
+                age_units = df['check_in_age_unit'].astype(str)  # Convert to string if needed
+
+                # Create the plot
+                fig, ax = plt.subplots()
+                unique_units = age_units.unique()
+                for unit in unique_units:
+                    unit_mask = age_units == unit
+                    ax.scatter(x[unit_mask], y[unit_mask], label=unit)
+
+                # Add labels and legend
+                ax.set_xlabel('Check In Age')
+                ax.set_ylabel('Mesh Width (um)')
+                ax.legend(title='Age Unit')
+                ax.set_title('Mesh Width Check-In')
+
+                if not df.empty:
+                    # Adjust y-axis limits
+                    y_min, y_max = y.min(), y.max()
+                    y_range = y_max - y_min
+                    ax.set_ylim(y_min - 0.15 * y_range, y_max + 0.15 * y_range)
+
+                unique_x = sorted(set(x))
+                avg_y = [np.mean([y[i] for i in range(len(x)) if x[i] == val]) for val in unique_x]
+                table_data = list(zip(unique_x, avg_y))
+                table = plt.table(cellText=table_data, colLabels=['Cycle #', 'Average'], cellLoc='center', loc='bottom', bbox=[0.1, -0.3, 0.8, 0.2])
+                
+                # Save the figure
+                plot_filename = f"{name}.png"
+                fig.savefig(plot_filename, bbox_inches='tight')
+                plt.close(fig)  # Close the figure to free memory
+
+                plots[name] = plot_filename  # Save filename to dictionary
+            
+            elif name == 'df_internalresistancecheckin':
+                x = df['check_in_age']
+                y = df['check_in_internal_resistance']
+                age_units = df['check_in_age_unit'].astype(str)  # Convert to string if needed
+
+                # Create the plot
+                fig, ax = plt.subplots()
+                unique_units = age_units.unique()
+                for unit in unique_units:
+                    unit_mask = age_units == unit
+                    ax.scatter(x[unit_mask], y[unit_mask], label=unit)
+
+                # Add labels and legend
+                ax.set_xlabel('Check In Age')
+                ax.set_ylabel('Internal Resistance (Ohm)')
+                ax.legend(title='Age Unit')
+                ax.set_title('Internal Resistance Check-In')
+
+                if not df.empty:
+                    # Adjust y-axis limits
+                    y_min, y_max = y.min(), y.max()
+                    y_range = y_max - y_min
+                    ax.set_ylim(y_min - 0.15 * y_range, y_max + 0.15 * y_range)
+
+                # Save the figure
+                plot_filename = f"{name}.png"
+                fig.savefig(plot_filename, bbox_inches='tight')
+                plt.close(fig)  # Close the figure to free memory
+
+                plots[name] = plot_filename  # Save filename to dictionary
+
+            
+
+            
+
+        return plots
+
+    plots = create_plot_from_df(checkin_df_dict)
+
+    print('ALL PLOTS', plots)
+
+
+    image_panes = [pn.pane.PNG(filename, width=400, height=400) for filename in plots.values()]
+    noncycle_jmp_layout = pn.GridBox(*image_panes, ncols=2, sizing_mode='stretch_width')
+
+
+    ' ############################### MAKE ECCHECKIN/OPTICSCHECKIN PLOTS ################################# '
+    # Create all plots
+    #jmp_plots_layout = create_single_panel_plot(single_cycles_df)
+    ec_optics_df = get_ec_optics_joined(conn, cursor, device_id_list)
+    print(ec_optics_df.columns)
+    ec_optics_df = ec_optics_df.loc[:, ~ec_optics_df.columns.duplicated()]
+    jmp_plots_layout = create_jmp_panel(ec_optics_df)
+
+    y_variables = ['coulombic_efficiency', 'tint_max_current', 'tint_charge_a', 'tint_charge_b',
+        'tint_charge_c', 
+        'tint_max_current_time', 'delta_initial_final_percentage',
+        'delta_max_min_percentage', 'final_percentage', 'initial_percentage',
+        'max_percentage', 'min_percentage', 'tint_ten_time', 'tint_five_time',
+        'a_initial',  'b_initial', 
+        'deltaE_initial', 'deltaE_final',
+        'mesh_width_checkin', 'tint_time_eighty_vlt']
+    cycle_plots = {}
+    ec_optics_df = ec_optics_df.fillna(np.nan)
+    for y_variable in y_variables:
+        x = ec_optics_df['cycle_number'].values
+        x = x.astype(np.int64)
+        y = ec_optics_df[y_variable].values
+        print(y)
+        y = y.astype(np.int64)
+        print(y)
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.scatter(x, y, color='black') # label='Scatter Data')
+        ax.set_xticks(np.arange(0, 200, 100))
+        ax.set_xlim(-50, 200)
+        # Add labels
+        ax.set_xlabel('Cycle #')
+        ax.set_ylabel(y_variable)
+        ax.set_title(y_variable + ' vs Cycle #')
+
+        if np.issubdtype(y.dtype, np.number) and np.any(np.isfinite(y)):
+            # Adjust y-axis limits
+            y_min, y_max = y.min(), y.max()
+            y_range = y_max - y_min
+            ax.set_ylim(y_min - 0.15 * y_range, y_max + 0.15 * y_range)
+
+        # Create lists of y-values grouped by x-values
+        box_data = []
+        unique_x = sorted(set(x))
+        for val in unique_x:
+            box_data.append([y[i] for i in range(len(x)) if x[i] == val])
+        # Boxplot
+        boxprops = dict(facecolor='lightgreen', color='darkgreen')  # Soft light green fill
+        whiskerprops = dict(color='darkgreen')  # Dark green whiskers
+        capprops = dict(color='darkgreen')  # Dark green caps
+
+        #ax.boxplot(box_data, positions=range(1, len(unique_x) + 1), widths=0.5, patch_artist=True, 
+        #    labels=[str(val) for val in unique_x], 
+        #    boxprops=boxprops, whiskerprops=whiskerprops, capprops=capprops)
+                # Calculate averages of y for each unique x
+        #ax.legend()
+        # Add table to the figure
+                # Calculate averages of y for each unique x
+        unique_x = sorted(set(x))
+        avg_y = [np.mean([y[i] for i in range(len(x)) if x[i] == val]) for val in unique_x]
+        table_data = list(zip(unique_x, avg_y))
+        table = plt.table(cellText=table_data, colLabels=['Cycle #', 'Average'], cellLoc='center', loc='bottom', bbox=[0.1, -0.3, 0.8, 0.2])
+        
+        plot_filename = f"{y_variable}.png"
+        fig.savefig(plot_filename, bbox_inches='tight')
+        plt.close(fig)  # Close the figure to free memory
+        cycle_plots[y_variable] = plot_filename 
+
+    image_panes = [pn.pane.PNG(filename, width=600, height=600) for filename in cycle_plots.values()]
+    cycle_jmp_layout = pn.GridBox(*image_panes, ncols=2, sizing_mode='stretch_width')
+    # use ec_optics_df
+
 
     '###### DASHBOARD ######### '
     
@@ -1318,29 +1346,44 @@ if __name__ == "__main__":
 
 
     # Define the main content area
-    main_content = pn.Column(
-        pn.Column('## All Devices in Baseline Run:', pn.pane.HTML(table_html),),
+    main_content = pn.Column(pn.Column('## All Devices in Baseline Run:', pn.pane.HTML(table_html),
         pn.Column('## Warmup Data', pn.Row(image_pane, schedule_and_plot_pane),),
-        pn.Column('## Cycling Data',)
+        pn.Column('## Cycling Data',))
     )
 
-    section1 = pn.Column('## All Devices in Baseline Run:', pn.pane.HTML(table_html),)
+    section1 = pn.Column('## All Devices in Baseline Run:', pn.pane.HTML(table_html), pn.pane.HTML(report_html))
     section2 = pn.Column('## Warmup Data', pn.Row(image_pane, schedule_and_plot_pane),)
     section3 = pn.Column('## Cycling Data',)
-    section4 = pn.Column('## Summary Values from Database',)
+    section4 = pn.Column('## Checkin Summary Values from Database', 
+                         pn.Row(pn.Column('## Interactive Plots:'), pn.Column(jmp_plots_layout)),
+                         pn.Row(pn.Row('## Static Plots (Non-cycle Checkins):'), 
+                                pn.Row(noncycle_jmp_layout)),
+                        pn.Row(pn.Row('## Static Plots (Cycing Checkins):'), 
+                                                    pn.Row(cycle_jmp_layout)))
+    section5 = pn.Column('## Arbin Summary Values from Database', arbin_plots_layout)
+    section6 = pn.Column('## Keyence Images',)
+    section7 = pn.Column('## Durability Predictions (keras/tensorflow modeling)',)
 
     main_content = pn.Tabs(
         ('Devices', section1),
         ('Warmup Data', section2),
         ('Cycling Data', section3),
-        ('JMP Summary Plots', section4)
+        ('JMP Summary Plots', section4),
+        ('Arbin Summary Plots', section5),
+        ('Keyence Images', section6),
+        ('Predictive Modeling', section7),
     )
     
+        # Define custom CSS for 3D effect
+
     # Create buttons in the sidebar to navigate to each section
     button1 = pn.widgets.Button(name='Go to Device Details', button_type='primary')
     button2 = pn.widgets.Button(name='Go to Warmup Data', button_type='primary')
     button3 = pn.widgets.Button(name='Go to Raw Cycling Data', button_type='primary')
-    button4 = pn.widgets.Button(name='Go to Summarized Cycling Data', button_type='primary')
+    button4 = pn.widgets.Button(name='Go to Summarized Checkin Cycling Data', button_type='primary')
+    button5 = pn.widgets.Button(name='Go to Summarized Arbin Cycling Data', button_type='primary')
+    button6 = pn.widgets.Button(name='Go to Durability Predictions', button_type='primary')
+    button7 = pn.widgets.Button(name='Go to Keyence Images', button_type='primary')
     # Define callback functions for buttons
     def go_to_section1(event):
         main_content.active = 0
@@ -1350,11 +1393,20 @@ if __name__ == "__main__":
         main_content.active = 2
     def go_to_section4(event):
         main_content.active = 3
+    def go_to_section5(event):
+        main_content.active = 4
+    def go_to_section6(event):
+        main_content.active = 5
+    def go_to_section7(event):
+        main_content.active = 6
     # Attach callbacks to buttons
     button1.on_click(go_to_section1)
     button2.on_click(go_to_section2)
     button3.on_click(go_to_section3)
     button4.on_click(go_to_section4)
+    button5.on_click(go_to_section5)
+    button6.on_click(go_to_section6)
+    button7.on_click(go_to_section7)
 
     # Define the content for the sidebar
     sidebar = pn.Column(
@@ -1362,7 +1414,7 @@ if __name__ == "__main__":
             pn.pane.Markdown("### Description of Baseline Run: "),
             pn.pane.Markdown('Name: ' + search_string), 
             pn.pane.Markdown("Database Notes: " + notes_string),  
-            pn.Column(button1, button2, button3, button4)
+            pn.Column(button1, button2, button3, button4, button5, button6, button7)
     )
 
     template = pn.template.FastListTemplate(
@@ -1375,7 +1427,6 @@ if __name__ == "__main__":
     template.show()
     
 
-
-main()
-
+if __name__ == "__main__":
+    main()
 

@@ -251,6 +251,19 @@ def search_baseline_name(df, search_string):
     
     return ids
 
+
+def get_routes(conn, cursor):
+    if conn and cursor:
+        # Update SQL query to filter by trd_id
+        sql_query = "SELECT id, route_name FROM tyntdatabase_route;"
+        # Execute the query with trd_id parameter
+        cursor.execute(sql_query)
+        rows = cursor.fetchall()
+        route_data = [{'route_id': row[0], 'route_name': row[1]} for row in rows]
+        routes_df = pd.DataFrame(route_data)
+
+    return routes_df
+
 def get_baseline_devices(conn, cursor, baseline_id):
     if conn and cursor:
         # Update SQL query to filter by trd_id
@@ -309,6 +322,25 @@ def search_shared_drives_data():
     return None
 
 from pathlib import Path
+
+def get_all_arbin_folders(directory):
+    # Extract the last folder name from the directory path
+    last_folder_name = os.path.basename(os.path.normpath(directory))
+    
+    # List to store matching subfolders
+    matching_subfolders = []
+    
+    # Get the parent directory
+    parent_directory = os.path.dirname(directory)
+    
+    # Iterate over all items in the parent directory
+    for item in os.listdir(parent_directory):
+        item_path = os.path.join(parent_directory, item)
+        # Check if it's a directory and if the last folder's name is a substring of the item name
+        if os.path.isdir(item_path) and last_folder_name in item:
+            matching_subfolders.append(item_path)
+    
+    return matching_subfolders
 
 def extract_after_substring(path, substring):
     """
@@ -731,7 +763,365 @@ def get_baseline_warmups(conn, cursor, device_id_list):
 
     return baseline_warmups_df
 
-import os
+def get_devices_arbin_checkins(conn, cursor, device_id_list):
+    if conn and cursor:
+        device_id_list = [int(id) for id in device_id_list]
+        print(device_id_list)
+        # Convert the list of IDs to a format suitable for SQL IN clause
+        format_strings = ','.join(['%s'] * len(device_id_list))
+        print(format_strings)
+        sql_query = f'''
+            SELECT * 
+            FROM tyntdatabase_arbincheckin
+            WHERE device_id IN ({format_strings})
+            LIMIT ALL 
+            OFFSET 0;
+        '''
+        # Execute the query with the list of IDs as parameters
+        cursor.execute(sql_query, device_id_list)
+        arbin_checkins = cursor.fetchall()
+        column_names = [desc[0] for desc in cursor.description]
+        arbin_checkins_df = pd.DataFrame(arbin_checkins, columns=column_names)
+
+    return arbin_checkins_df
+
+def get_devices_single_cycle_arbin_checkins(conn, cursor, arbin_checkins_df):
+    arbin_id_list = arbin_checkins_df['id'].tolist()
+    print('ARBIN IDS EXTRACTED:', arbin_id_list)
+    if conn and cursor:
+        arbin_id_list = [int(id) for id in arbin_id_list]
+        # Convert the list of IDs to a format suitable for SQL IN clause
+        format_strings = ','.join(['%s'] * len(arbin_id_list))
+        print(format_strings)
+        sql_query = f'''
+            SELECT * 
+            FROM tyntdatabase_singlecyclearbincheckin
+            WHERE arbincheckin_id IN ({format_strings})
+            LIMIT ALL 
+            OFFSET 0;
+        '''
+        # Execute the query with the list of IDs as parameters
+        cursor.execute(sql_query, arbin_id_list)
+        single_cycle_arbin_checkins = cursor.fetchall()
+        column_names = [desc[0] for desc in cursor.description]
+        single_cycle_arbin_checkins_df = pd.DataFrame(single_cycle_arbin_checkins, columns=column_names)
+
+    return single_cycle_arbin_checkins_df
+
+import pandas as pd
+
+def get_ec_optics_joined(conn, cursor, device_id_list):
+    if conn and cursor:
+        device_id_list = [int(id) for id in device_id_list]
+        print(device_id_list)
+        # Convert the list of IDs to a format suitable for SQL IN clause
+        format_strings = ','.join(['%s'] * len(device_id_list))
+        print(format_strings)
+        
+        sql_query = f'''
+            SELECT eccheckin.*, opticscheckin.*
+            FROM tyntdatabase_eccheckin AS eccheckin
+            JOIN tyntdatabase_opticscheckin AS opticscheckin
+            ON eccheckin.device_id = opticscheckin.device_id
+            AND eccheckin.cycle_number = opticscheckin.cycle_number
+            WHERE eccheckin.device_id IN ({format_strings})
+            LIMIT ALL 
+            OFFSET 0;
+        '''
+        
+        # Execute the query with the list of IDs as parameters
+        cursor.execute(sql_query, device_id_list)
+        trd_eccheckins = cursor.fetchall()
+        print(trd_eccheckins)
+        
+        column_names = [desc[0] for desc in cursor.description]
+        df = pd.DataFrame(trd_eccheckins, columns=column_names)
+
+    return df
+
+def get_haze_weight_meshwidth_devicewidth_bubbles_ir_joined(conn, cursor, device_id_list):
+    table_list = ['BubbleAreaCheckIn', 'DeviceThicknessCheckIn', 'HazeCheckIn', 
+                  'WeightCheckIn', 'MeshWidthCheckIn', 'InternalResistanceCheckIn']
+    # Dictionary to hold DataFrames
+    dataframes = {}
+    # InternalResistanceCheckIn
+    # device, check_in_age, check_in_age_unit
+    if conn and cursor:
+        device_id_list = [int(id) for id in device_id_list]
+        format_strings = ','.join(['%s'] * len(device_id_list))
+        for table in table_list:
+            sql_query = f'''
+                SELECT * 
+                FROM tyntdatabase_{table.lower()}
+                WHERE device_id IN ({format_strings})
+                LIMIT ALL 
+                OFFSET 0;
+            '''
+            # Execute the query with the list of IDs as parameters
+            cursor.execute(sql_query, device_id_list)
+            checkins = cursor.fetchall()
+            
+            column_names = [desc[0] for desc in cursor.description]
+            df = pd.DataFrame(checkins, columns=column_names)
+            dataframes[f'df_{table.lower()}'] = df
+    return dataframes
+
+' ############ JMP PLOT GENERATION #################### '
+
+def make_jmp_box(data, x, y, color_col, title):
+    # Convert color column to string type for grouping
+    data[color_col] = data[color_col].astype(str)
+    
+    # Create box plots with dots for the color column
+    grouped = data.groupby(color_col)
+    box_plots = []
+    scatter_plots = []
+    
+    for name, group in grouped:
+        box_plot = hv.BoxWhisker(group, kdims=x, vdims=y).opts(
+            opts.BoxWhisker(width=400, height=200, tools=['hover'], box_color='blue')
+        )
+        dot_plot = hv.Scatter(group, kdims=x, vdims=y).opts(
+            opts.Scatter(size=5, color='black')
+        )
+        box_plots.append(box_plot)
+        scatter_plots.append(dot_plot)
+    
+    plot = hv.Overlay(box_plots + scatter_plots).opts(
+        opts.Overlay(legend_position='right', title=title)
+    )
+    
+    return plot
+
+import matplotlib.pyplot as plt
+
+def create_jmp_panel(ec_optics_df):
+    # Define the list of y-values
+    y_values = [
+        'coulombic_efficiency', 'bleach_final_current', 'bleach_max_current',
+        'tint_final_current', 'tint_max_current', 'tint_charge_a', 'tint_charge_b',
+        'tint_charge_c', 'tint_charge_d', 'charge_in', 'charge_out', 
+        'tint_max_current_time', 'bleach_ten_time', 'bleach_five_time', 
+        'bleach_one_time', 'bleach_point_one_time', 'delta_initial_final_percentage',
+        'delta_max_min_percentage', 'final_percentage', 'initial_percentage',
+        'max_percentage', 'min_percentage', 'tint_ten_time', 'tint_five_time',
+        'tint_one_time', 'tint_point_one_time', 'tint_ten_a', 'tint_five_a',
+        'tint_one_a', 'tint_point_one_a', 'a_final', 'a_initial', 'a_max',
+        'a_min', 'tint_ten_b', 'tint_five_b', 'tint_one_b', 'tint_point_one_b',
+        'b_final', 'b_initial', 'b_max', 'b_min', 'tint_ten_cri', 'tint_five_cri',
+        'tint_one_cri', 'tint_point_one_cri', 'cri_final', 'cri_initial',
+        'cri_max', 'cri_min', 'tint_ten_l', 'tint_five_l', 'tint_one_l',
+        'tint_point_one_l', 'l_final', 'l_initial', 'l_max', 'l_min',
+        'deltaE_initial', 'local_path', 'server_path', 'deltaE_final',
+        'tint_five_deltaE', 'deltaE_min', 'tint_one_deltaE',
+        'tint_point_one_deltaE', 'tint_ten_deltaE', 'expected_VLT',
+        'mesh_width_checkin', 'tint_time_eighty_vlt'
+    ]
+
+    # Create a select widget for y-values
+    y_select = pn.widgets.Select(name='Select Y Variable', options=y_values, value=y_values[0])
+
+    # Define a callback function to update the plot based on the selected y_value
+    @pn.depends(y_value=y_select)
+    def update_plot(y_value):
+        if y_value is None:
+            return "Please select a y-value."
+        
+        if 'cycle_number' not in ec_optics_df.columns:
+            return "Error: 'cycle_number' column is missing from the DataFrame."
+
+        # Call the make_row_box function with the color column
+        plot = make_jmp_box(
+            ec_optics_df, 'cycle_number', y_value, 'device_id', y_value
+        )
+        
+        # Return the plot
+        return plot
+
+    # Create and return the Panel layout with the select widget and the plot
+    layout = pn.Column(y_select, update_plot)
+    return layout
+
+
+
+' ########### END JMP LAYOUT ####################'
+
+
+
+def make_shaded_line_plot(x, y, title):
+    # Create a HoloViews Curve (line plot)
+    line_plot = hv.Curve((x, y), kdims='x', vdims='y')
+
+    # Create a HoloViews Area (shaded region under the curve)
+    # Fill from zero to the curve
+    shaded_area = hv.Area((np.concatenate([x, x[::-1]]), np.concatenate([np.zeros_like(y), y[::-1]])),
+                        kdims='x', vdims='y').opts(
+        fill_color='lightgreen',  # Light green color
+        fill_alpha=0.3,  # Mostly transparent
+        line_color=None  # No line border
+    )
+
+    # Overlay the shaded area and the line plot
+    plot = shaded_area * line_plot
+
+    # Apply options for styling
+    plot.opts(
+        opts.Curve(title=title, color='green', line_width=2),  # Line style
+        opts.Overlay(legend_position='top_left')  # Position the legend
+    )
+
+    return plot
+
+
+
+
+
+
+
+def make_shaded_scatter_plot(x, y, title, y_string):
+    if len(x) == 0 or len(y) == 0:
+        return "Data is empty. No plot to display."
+
+    # Create a HoloViews Scatter (plot with no connecting lines)
+    scatter_plot = hv.Scatter((x, y), kdims='x', vdims='y')
+    
+    # Create a HoloViews Area (shaded region under the scatter points)
+    shaded_area = hv.Area((x, np.zeros_like(y)), kdims='x', vdims='y').opts(
+        fill_color='lightgreen',  # Light green color
+        fill_alpha=0.3,  # Mostly transparent
+        line_color=None  # No line border
+    )
+    
+    # Calculate y-axis bounds
+    y_min, y_max = min(y), max(y)
+    y_range = (y_min - 5, y_max + 5)  # Extend the y-axis range by 5 units
+
+    # Overlay the shaded area and the scatter plot
+    plot = shaded_area * scatter_plot
+    
+    # Apply options for styling including the title and y-axis bounds
+    plot.opts(
+        opts.Scatter(
+            color='green', 
+            size=5, 
+            title=title, 
+            xlabel='Cycle', 
+            ylabel=y_string, 
+            ylim=y_range,  # Set the y-axis bounds directly
+            width=800,
+            height=400  # Ensure height is also set
+        ),
+        opts.Overlay(
+            legend_position='top_left'  # Position the legend
+        )
+    )
+    
+    return plot
+
+def update_plot(device_id, y_string, df):
+    # Filter DataFrame based on the selected device ID
+    filtered_df = df[df['device_id'] == device_id]
+    
+    # Check if filtered DataFrame is empty
+    if filtered_df.empty:
+        return f"No data available for device ID: {device_id}"
+    
+    # Extract data from filtered DataFrame
+    x = filtered_df['cycle'].values
+    y = filtered_df[y_string].values
+    title = f'{y_string.replace("_", " ").title()} Over Cycle for Device ID: {device_id}'
+    
+    # Create and return the plot
+    return make_shaded_scatter_plot(x, y, title, y_string)
+
+def create_panel_plot(df, y_string):
+    # Create a select widget for device IDs
+    device_ids = df['device_id'].unique()
+    select = pn.widgets.Select(name='Device ID', options=list(device_ids))
+    
+    # Define a callback function to update the plot based on the selected device ID
+    @pn.depends(device_id=select)
+    def plot_callback(device_id):
+        if device_id is None:
+            return "Please select a device ID."
+        return update_plot(device_id, y_string, df)
+
+    # Create and return the Panel layout with the select widget and the plot
+    layout = pn.Column(select, plot_callback)
+    return layout
+
+' ######### ALTERNATE ARBIN PLOTS """"""""""""'
+import panel as pn
+import holoviews as hv
+import numpy as np
+import pandas as pd
+
+
+def make_shaded_scatter_plot(x, y, title, y_string):
+    if len(x) == 0 or len(y) == 0:
+        return "Data is empty. No plot to display."
+
+    scatter_plot = hv.Scatter((x, y), kdims='x', vdims='y')
+    shaded_area = hv.Area((x, np.zeros_like(y)), kdims='x', vdims='y').opts(
+        fill_color='lightgreen',
+        fill_alpha=0.3,
+        line_color=None
+    )
+    y_min, y_max = min(y), max(y)
+    y_range = (y_min - 5, y_max + 5)
+
+    plot = shaded_area * scatter_plot
+    plot.opts(
+        opts.Scatter(
+            color='green',
+            size=5,
+            title=title,
+            xlabel='Cycle',
+            ylabel=y_string,
+            ylim=y_range,
+            width=800
+        ),
+        opts.Overlay(
+            legend_position='top_left'
+        )
+    )
+    
+    return plot
+
+def update_plot(df, device_id, y_string):
+    filtered_df = df[df['device_id'] == device_id]
+    
+    if filtered_df.empty:
+        return f"No data available for device ID: {device_id}"
+    
+    x = filtered_df['cycle'].values
+    y = filtered_df[y_string].values
+    title = f'{y_string.replace("_", " ").title()} Over Cycle for Device ID: {device_id}'
+    
+    return make_shaded_scatter_plot(x, y, title, y_string)
+
+def create_single_panel_plot(df):
+    device_ids = df['device_id'].unique()
+    y_strings = ['coulombic_efficiency', 'bleach_internal_resistance', 'tint_internal_resistance',
+                 'bleach_charge', 'max_tint_current', 'tint_charge', 'total_bleach_time', 'total_tint_time']
+    
+    device_select = pn.widgets.Select(name='Device ID', options=list(device_ids))
+    y_select = pn.widgets.Select(name='Y-String', options=y_strings)
+    
+    @pn.depends(device_id=device_select, y_string=y_select)
+    def plot_callback(device_id, y_string):
+        if device_id is None or y_string is None:
+            return "Please select both device ID and y-string."
+        plot = update_plot(df, device_id, y_string)
+        if isinstance(plot, str):
+            return plot
+        return plot
+
+    layout = pn.Column(device_select, y_select, plot_callback)
+    return layout
+
+'#############################################'
+
 
 def extract_unique_parent_dirs(path_list):
     unique_dirs = set()
@@ -749,10 +1139,75 @@ def extract_unique_parent_dirs(path_list):
         if cycle_index is not None:
             # Rebuild the path up to the index before 'cycle' or 'precycle'
             parent_dir = os.path.join(*path_parts[:cycle_index])
+            
+            # Ensure the path is properly formatted with leading '/' if the original path was absolute
+            if os.path.isabs(path):
+                parent_dir = os.path.join(os.sep, parent_dir)
+            
+            # Add trailing '/' if not already present
+            if not parent_dir.endswith(os.sep):
+                parent_dir += os.sep
+            
             unique_dirs.add(parent_dir)
     
-    return list(unique_dirs)
+    return sorted(unique_dirs)
 
+
+def find_folders_recursively(path):
+    folder_list = []
+    local_list = os.listdir(path)
+    
+    for item in local_list:
+        item_path = os.path.join(path, item)
+        
+        if os.path.isdir(item_path):
+            # Add directory to the list
+            folder_list.append(item_path)
+            # Recursively find subdirectories
+            folder_list += find_folders_recursively(item_path)
+    
+    return folder_list
+
+def find_photo_folder_paths(path_list):
+    photo_folder_paths = []
+    for path in path_list:
+        if 'pictures' in path:
+            photo_folder_paths.append(path)
+    return photo_folder_paths
+
+def find_pictures_subdirectories(directory_path):
+    pictures_dirs = []
+    for root, dirs, files in os.walk(directory_path):
+        for dir_name in dirs:
+            if 'pictures' in dir_name.lower():
+                pictures_dirs.append(os.path.join(root, dir_name))
+    return pictures_dirs
+
+def find_warmup_paths(path_list):
+    photo_folder_paths = []
+    for path in path_list:
+        if '/precycle' in path or '\\precycle' in path:
+            photo_folder_paths.append(path)
+    return photo_folder_paths
+
+def find_cycle_paths(path_list):
+    photo_folder_paths = []
+    for path in path_list:
+        if '/cycle' in path or '\\cycle' in path:
+            photo_folder_paths.append(path)
+    return photo_folder_paths
+
+def get_corresp_ec_filepaths(path_list):
+    ec_paths = []
+    for path in path_list:
+        directory = os.path.dirname(path)
+        items = os.listdir(directory)
+        # should only be one .tyntEC file
+        for item in items:
+            if 'tyntEC' in item:
+                ec_file_path = os.path.join(directory, item)
+                ec_paths.append(ec_file_path)
+    return ec_paths
 
 def create_dashboard(baseline_version, warmup_gif_path):
     pn.config.theme = 'dark' 
@@ -787,11 +1242,44 @@ def create_dashboard(baseline_version, warmup_gif_path):
 
     return dashboard
 
-# Example usage
-file_path = '/Users/sarahpearce/Library/CloudStorage/GoogleDrive-sarah@tynt.io/Shared drives/Data/Devices/2024/07/20240703/20240703_PB_4172/precycle1/20240703_PB_4172_precycle1.tyntEC'
-steps_text = get_warmup_schedule(file_path)
-print(steps_text)
+def get_all_raw_data(local_paths):
+    # Define the column names
+    columns = ['Time', 'Voltage (V)', 'Current (mA)', 'Charge (C)', 'Step Number',
+        'Programmed Voltage (V)', 'Programmed Current (A)', 'Control Mode',
+        'id', 'cycle']
+    # Create an empty DataFrame with the specified columns
+    final_df = pd.DataFrame(columns=columns)
+    for path in local_paths:
+        ### NEED TO ADD CATCH IF GOOGLE DRIVE FILES (not just folders) ARE DELETED OR NOT CONNECTED PROPERLY!
+        try: 
+            print(path.split(os.sep))
+            file = path.split(os.sep)[-1]
+            file = file.split('.')[0]
+            id = int(file.split('_')[2])
+            pattern = r'\d+'
+            cycle_string = file.split('_')[3]
+            print(cycle_string)
+            cycle = re.findall(pattern, cycle_string)
+            cycle = int(cycle[0])
+            raw_ec_cycle_data = pd.read_csv(str(path), sep='\t', comment='#', index_col=0)
+            time = pd.to_datetime(raw_ec_cycle_data['Time'], format = '%Y-%m-%d %H:%M:%S.%f')
+            startTime = time[0]
+            time -= startTime
+            time = time.dt.total_seconds()
+            voltage = raw_ec_cycle_data['Voltage (V)']
+            current = raw_ec_cycle_data['Current (A)']
+            current = current*1000 # convert from A to mA
+            raw_ec_cycle_data['Current (mA)'] = current
+            del raw_ec_cycle_data['Current (A)']
+            charge = raw_ec_cycle_data['Charge (C)']
+            raw_ec_cycle_data['Time'] = time
+            raw_ec_cycle_data['id'] = [id]*len(time)
+            raw_ec_cycle_data['cycle'] = [cycle]*len(time)
 
+            print(raw_ec_cycle_data.columns)
+            final_df = pd.concat([final_df, raw_ec_cycle_data], ignore_index=True)
 
-
+        except Exception:
+            print('\n Error: Unable to locate EC file on drive')
+    return final_df
 

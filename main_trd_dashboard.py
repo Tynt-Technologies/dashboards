@@ -1063,6 +1063,7 @@ def main():
         matching_ids = search_trd_name(trds_df, search_string)
         trd_id = matching_ids[0]
         trd_devices = get_trd_devices(conn, cursor, trd_id)
+
         print(trd_devices.columns)
 
         # Get list of IDs for the specified device names
