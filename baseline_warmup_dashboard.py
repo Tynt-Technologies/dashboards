@@ -448,40 +448,6 @@ def find_directory(base_path, target_directory):
                 return os.path.join(root, dir_name)
     return None
 
-import platform
-def search_shared_drives_data():
-    # Define potential base paths to search (customize based on your setup)
-    system = platform.system()
-    if system == 'Windows': # is pc
-        base_paths = [
-        os.path.expanduser('~'),     # Home directory
-        'C:\\',                      # Root of C: drive
-        'D:\\',                      # Root of D: drive, adjust if you have other drives
-        'E:\\'                       # Root of E: drive, adjust if needed
-        ]
-        
-    elif system == 'Darwin': # is mac
-        base_paths = [
-        os.path.expanduser('~'),  # Home directory
-        '/Volumes',               # Common mount points
-        '/media',                 # Alternative common mount points
-        '/mnt'                    # Alternative common mount points
-        ]
-    else:
-        raise OSError("Unsupported operating system")
-    
-    target_directory = 'Shared drives'
-    sub_directory = 'Data'
-
-    for base_path in base_paths:
-        path = find_directory(base_path, target_directory)
-        if path:
-            # Check within the found directory for the sub-directory 'Data'
-            data_path = find_directory(path, sub_directory)
-            if data_path:
-                return data_path
-
-    return None
 
 from pathlib import Path
 
@@ -499,7 +465,7 @@ def extract_after_substring(path, substring):
     #path_obj = Path(path)
     # Convert the path to a string and find the position of the substring
     #path_str = str(path_obj)
-    
+
     path_str = path # should work on both windows and mac
     
     index = path_str.find(substring)
