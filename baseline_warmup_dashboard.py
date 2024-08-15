@@ -477,31 +477,6 @@ def extract_after_substring(path, substring):
     
     return result
 
-def combine_paths(base_path, relative_path):   
-    # Fix google drive's duplicate issue?
-    # Regular expression pattern to match a timestamp (e.g., (7:24:24))
-    # base_path = '/Users/sarahpearce/Library/CloudStorage/GoogleDrive-sarah@tynt.io/Shared drives/Data'
-    print(base_path)
-    base_path_obj = Path(base_path)
-    relative_path_obj = Path(relative_path)
-    
-    # Combine the paths
-    final_path = base_path_obj / relative_path_obj
-    
-    return str(final_path)
-
-def check_path_exists(path):
-    """
-    Check if the given path exists.
-
-    Args:
-        path (str): The path to check.
-
-    Returns:
-        bool: True if the path exists, False otherwise.
-    """
-    path_obj = Path(path)
-    return path_obj.exists()
 
 def get_local_paths(path_list):
     local_paths = []

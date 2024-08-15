@@ -308,7 +308,8 @@ def search_shared_drives_data():
         os.path.expanduser('~'),     # Home directory
         'C:\\',                      # Root of C: drive
         'D:\\',                      # Root of D: drive, adjust if you have other drives
-        'E:\\'                       # Root of E: drive, adjust if needed
+        'E:\\',
+        'T:\\'                                              # Root of E: drive, adjust if needed
         ]
         
     elif system == 'Darwin': # is mac
@@ -322,12 +323,14 @@ def search_shared_drives_data():
         raise OSError("Unsupported operating system")
 
     print('system', system)
-    
+
     target_directory = 'Shared drives'
     sub_directory = 'Data'
 
     for base_path in base_paths:
+        print('base path search...', base_path)
         path = find_directory(base_path, target_directory)
+        print('finding directory....', path)
         if path:
             # Check within the found directory for the sub-directory 'Data'
             data_path = find_directory(path, sub_directory)
@@ -383,16 +386,16 @@ def extract_after_substring(path, substring):
     return result
 
 def combine_paths(base_path, relative_path):   
-    # Fix google drive's FUCK UP
+    # Fix google drive's duplicate issue?
     # Regular expression pattern to match a timestamp (e.g., (7:24:24))
-    base_path = '/Users/sarahpearce/Library/CloudStorage/GoogleDrive-sarah@tynt.io/Shared drives/Data'
+    # base_path = '/Users/sarahpearce/Library/CloudStorage/GoogleDrive-sarah@tynt.io/Shared drives/Data'
     print(base_path)
     base_path_obj = Path(base_path)
     relative_path_obj = Path(relative_path)
     
     # Combine the paths
     final_path = base_path_obj / relative_path_obj
-    final_path = clean_path(final_path)
+    
     return str(final_path)
 
 def check_path_exists(path):
