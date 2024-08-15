@@ -338,6 +338,7 @@ def get_all_arbin_folders(directory):
         item_path = os.path.join(parent_directory, item)
         # Check if it's a directory and if the last folder's name is a substring of the item name
         if os.path.isdir(item_path) and last_folder_name in item:
+            item_path = Path(str(item_path).replace(' (7:24:24)', ''))
             matching_subfolders.append(item_path)
     
     return matching_subfolders
@@ -363,7 +364,7 @@ def extract_after_substring(path, substring):
     
     # Extract everything after the substring and handle leading slashes
     result = path_str[index + len(substring):].lstrip('/')
-    
+    result = clean_path(result)
     return result
 
 def combine_paths(base_path, relative_path):   
@@ -376,7 +377,7 @@ def combine_paths(base_path, relative_path):
     
     # Combine the paths
     final_path = base_path_obj / relative_path_obj
-    
+    final_path = clean_path(final_path)
     return str(final_path)
 
 def check_path_exists(path):
@@ -413,9 +414,14 @@ def get_local_paths(path_list):
             print(f"The path exists: {final_path_folder}")
         else:
             print(f"The path does not exist: {final_path_folder}")
+        final_path = clean_path(final_path)
         local_paths.append(final_path)
 
     return local_paths
+
+def clean_path(path):
+    path = Path(str(path).replace(' (7:24:24)', ''))
+    return path
 
 def get_initial_photo_path(local_paths):
     initial_photo_paths = []
@@ -1101,23 +1107,25 @@ def update_plot(df, device_id, y_string):
     return make_shaded_scatter_plot(x, y, title, y_string)
 
 def create_single_panel_plot(df):
-    device_ids = df['device_id'].unique()
-    y_strings = ['coulombic_efficiency', 'bleach_internal_resistance', 'tint_internal_resistance',
-                 'bleach_charge', 'max_tint_current', 'tint_charge', 'total_bleach_time', 'total_tint_time']
-    
-    device_select = pn.widgets.Select(name='Device ID', options=list(device_ids))
-    y_select = pn.widgets.Select(name='Y-String', options=y_strings)
-    
-    @pn.depends(device_id=device_select, y_string=y_select)
-    def plot_callback(device_id, y_string):
-        if device_id is None or y_string is None:
-            return "Please select both device ID and y-string."
-        plot = update_plot(df, device_id, y_string)
-        if isinstance(plot, str):
+    if not df.empty: # if not empty
+        device_ids = df['device_id'].unique()
+        y_strings = ['coulombic_efficiency', 'bleach_internal_resistance', 'tint_internal_resistance',
+                    'bleach_charge', 'max_tint_current', 'tint_charge', 'total_bleach_time', 'total_tint_time']
+        
+        device_select = pn.widgets.Select(name='Device ID', options=list(device_ids))
+        y_select = pn.widgets.Select(name='Y-String', options=y_strings)
+        
+        @pn.depends(device_id=device_select, y_string=y_select)
+        def plot_callback(device_id, y_string):
+            if device_id is None or y_string is None:
+                return "Please select both device ID and y-string."
+            plot = update_plot(df, device_id, y_string)
+            if isinstance(plot, str):
+                return plot
             return plot
-        return plot
 
-    layout = pn.Column(device_select, y_select, plot_callback)
+        layout = pn.Column(device_select, y_select, plot_callback)
+    else: layout = pn.Column('No Arbin cycling data found in database')
     return layout
 
 '#############################################'
@@ -1148,6 +1156,7 @@ def extract_unique_parent_dirs(path_list):
             if not parent_dir.endswith(os.sep):
                 parent_dir += os.sep
             
+            parent_dir = clean_path(parent_dir)
             unique_dirs.add(parent_dir)
     
     return sorted(unique_dirs)
@@ -1164,6 +1173,7 @@ def find_folders_recursively(path):
             # Add directory to the list
             folder_list.append(item_path)
             # Recursively find subdirectories
+            item_path = clean_path(item_path)
             folder_list += find_folders_recursively(item_path)
     
     return folder_list
@@ -1172,6 +1182,7 @@ def find_photo_folder_paths(path_list):
     photo_folder_paths = []
     for path in path_list:
         if 'pictures' in path:
+            path = clean_path(path)
             photo_folder_paths.append(path)
     return photo_folder_paths
 
@@ -1180,21 +1191,23 @@ def find_pictures_subdirectories(directory_path):
     for root, dirs, files in os.walk(directory_path):
         for dir_name in dirs:
             if 'pictures' in dir_name.lower():
-                pictures_dirs.append(os.path.join(root, dir_name))
+                pictures_dirs.append(clean_path(os.path.join(root, dir_name)))
     return pictures_dirs
 
 def find_warmup_paths(path_list):
     photo_folder_paths = []
     for path in path_list:
+        path = str(path) # convert from PosizPath object to string
         if '/precycle' in path or '\\precycle' in path:
-            photo_folder_paths.append(path)
+            photo_folder_paths.append(clean_path(path))
     return photo_folder_paths
 
 def find_cycle_paths(path_list):
     photo_folder_paths = []
     for path in path_list:
-        if '/cycle' in path or '\\cycle' in path:
-            photo_folder_paths.append(path)
+        path_str = str(path)
+        if '/cycle' in path_str or '\\cycle' in path_str:
+            photo_folder_paths.append(clean_path(path))
     return photo_folder_paths
 
 def get_corresp_ec_filepaths(path_list):
@@ -1206,7 +1219,7 @@ def get_corresp_ec_filepaths(path_list):
         for item in items:
             if 'tyntEC' in item:
                 ec_file_path = os.path.join(directory, item)
-                ec_paths.append(ec_file_path)
+                ec_paths.append(clean_path(ec_file_path))
     return ec_paths
 
 def create_dashboard(baseline_version, warmup_gif_path):

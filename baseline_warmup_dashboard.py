@@ -497,9 +497,9 @@ def extract_after_substring(path, substring):
     return result
 
 def combine_paths(base_path, relative_path):   
-    # Fix google drive's FUCK UP
+    # Fix google drive's duplicate issue?
     # Regular expression pattern to match a timestamp (e.g., (7:24:24))
-    base_path = '/Users/sarahpearce/Library/CloudStorage/GoogleDrive-sarah@tynt.io/Shared drives/Data'
+    # base_path = '/Users/sarahpearce/Library/CloudStorage/GoogleDrive-sarah@tynt.io/Shared drives/Data'
     print(base_path)
     base_path_obj = Path(base_path)
     relative_path_obj = Path(relative_path)
@@ -536,6 +536,8 @@ def get_local_paths(path_list):
         final_path = combine_paths(directory_path, end_of_path)
 
         print("Final Path:", final_path)
+
+        ## GETTING STUCK HERE????
 
         final_path_folder = str(Path(final_path).parent)
         print(final_path_folder)
@@ -905,8 +907,12 @@ def main():
 
         # GET THE WARMUP PHOTO PATHS
         # Set all warmup values to None before looking for the data
-        warmup_folder_paths = None
-        warmup_ecs_corresponding_to_photos = None
+        warmup_folder_paths = []
+        warmup_ecs_corresponding_to_photos = []
+        cycling_folder_paths = []
+        warmup_folder_paths = []
+        all_folders_list = []
+        photo_folder_paths = []
         if len(unique_dirs) > 0:
             test = unique_dirs[0]
 
@@ -942,8 +948,11 @@ def main():
         ' ################### GETTING ACTUAL ARBIN DATA ##################### '
         arbin_df = get_devices_arbin_checkins(conn, cursor, device_id_list)
         print('ARBIN CHECKS!!!!!!', arbin_df.columns)
-        single_cycles_df = get_devices_single_cycle_arbin_checkins(conn, cursor, arbin_df)
-        print('ARBIN SINGLE CHECKS!!!!!!', single_cycles_df.columns)
+        if not arbin_df.empty: # if it's not empty
+            single_cycles_df = get_devices_single_cycle_arbin_checkins(conn, cursor, arbin_df)
+            print('ARBIN SINGLE CHECKS!!!!!!', single_cycles_df.columns)
+        else: # EMPTY!
+            single_cycles_df = pd.DataFrame(data=[])
 
         ' ################### GETTING SINGLE VAL CHECKIN DATA ##################### '
         checkin_df_dict = get_haze_weight_meshwidth_devicewidth_bubbles_ir_joined(conn, cursor, device_id_list)
@@ -955,11 +964,14 @@ def main():
         # If no photos in unique_dirs
 
 
-        # PICTURES #############
-        rows = len(cycling_folder_paths)
-        photo_checkin_crop_box = (450, 1200, 2400, 3300)
-        image_paths = [os.path.join(cycling_folder_paths[0], fname) for fname in sorted(os.listdir(cycling_folder_paths[0])) if fname.endswith(('.png', '.jpg', '.jpeg', '.gif'))]
-        print('FINAL PATHS', image_paths)
+        # First set images paths to unavailable image/image not found
+        image_paths = [os.path.join(os.getcwd(), 'figures', 'no_data.png'), os.path.join(os.getcwd(), 'figures', 'no_data.png')]
+        ' ################## PICTURES ################ '
+        if cycling_folder_paths is not None and cycling_folder_paths:
+            rows = len(cycling_folder_paths)
+            photo_checkin_crop_box = (450, 1200, 2400, 3300)
+            image_paths = [os.path.join(cycling_folder_paths[0], fname) for fname in sorted(os.listdir(cycling_folder_paths[0])) if fname.endswith(('.png', '.jpg', '.jpeg', '.gif'))]
+            print('Accessing local gdrive cycling folder paths....', image_paths)
 
         # now want to use warmup_folder_paths and warmup_ecs_corresponding_to_photos 
         # need as many rows as have paths!!!
@@ -970,35 +982,46 @@ def main():
         #print('FINAL PATHS', image_paths)
         #image_panes = [pn.pane.Image(crop_image(path, photo_checkin_crop_box), width=400, height=300) for path in image_paths]
 
-        # Define the directory where your images are stored
-        image_dir ='/Users/sarahpearce/Library/CloudStorage/GoogleDrive-sarah@tynt.io/Shared drives/Data/Devices/2024/07/20240703/20240703_PB_4172/precycle1/pictures'
-        photo_checkin_crop_box = (450, 1200, 2400, 3300) 
-        image_paths = [os.path.join(image_dir, fname) for fname in sorted(os.listdir(image_dir)) if fname.endswith(('.png', '.jpg', '.jpeg', '.gif'))]
-        print('Accessing warmup image paths....', image_paths)
-        # Function to load and display an image based on the slider value
-        
-        file_path = '/Users/sarahpearce/Library/CloudStorage/GoogleDrive-sarah@tynt.io/Shared drives/Data/Devices/2024/07/20240703/20240703_PB_4172/precycle1/20240703_PB_4172_precycle1.tyntEC'
-        #file_path = image_paths[0]
-        photo_step_descriptions = photo_step_description(file_path)
 
-        # Get full schedule and plot EC curve with the photos
-        formatted_schedule, combined_plot = plot_data_and_print_schedule(file_path)
+        # DIRECTORY WHERE IMAGES ARE STORED
+        # SET TO NONE FIRST
+        formatted_schedule = ''
+        combined_plot = ''
+        photo_step_descriptions = ['No Cycling Steps Found', 'No Cycling Steps Found']
+        photo_checkin_crop_box = () 
+        #image_dir ='/Users/sarahpearce/Library/CloudStorage/GoogleDrive-sarah@tynt.io/Shared drives/Data/Devices/2024/07/20240703/20240703_PB_4172/precycle1/pictures'
+        if warmup_folder_paths is not None and warmup_folder_paths:
+            image_dir = warmup_folder_paths[0]
+            photo_checkin_crop_box = (450, 1200, 2400, 3300) 
+            image_paths = [os.path.join(image_dir, fname) for fname in sorted(os.listdir(image_dir)) if fname.endswith(('.png', '.jpg', '.jpeg', '.gif'))]
+            print('Accessing local gdrive warmup image paths....', image_paths)
+        
+            # FILEPATH FOR CORRESPONDING EC FILE TO IMAGES
+            #file_path = '/Users/sarahpearce/Library/CloudStorage/GoogleDrive-sarah@tynt.io/Shared drives/Data/Devices/2024/07/20240703/20240703_PB_4172/precycle1/20240703_PB_4172_precycle1.tyntEC'
+            file_path = warmup_ecs_corresponding_to_photos[0]
+            photo_step_descriptions = photo_step_description(file_path)
+
+            # Get full schedule and plot EC curve with the photos
+            formatted_schedule, combined_plot = plot_data_and_print_schedule(file_path)
 
         def get_image_and_description(index, image_paths, descriptions):
+            print(image_paths)
             if index < len(image_paths):
-                image = crop_image(image_paths[index], photo_checkin_crop_box)
-                description = descriptions[index]
-                return pn.Column(
-                    pn.Row(decrement_button, slider, increment_button),
-                    pn.pane.Image(image, width=600, height=400, align='start'),
-                    pn.pane.Markdown(description),
-                )
-            return pn.pane.HTML("No content available")
+                if not 'no_data' in image_paths[index]:
+                    image = crop_image(image_paths[index], photo_checkin_crop_box)
+                    description = descriptions[index]
+                    return pn.Column(
+                        pn.Row(decrement_button, slider, increment_button),
+                        pn.pane.Image(image, width=600, height=400, align='start'),
+                        pn.pane.Markdown(description),
+                    )
+                else:
+                    return pn.pane.HTML("No content available")
 
 
     ' ############################### MAKE ARBIN PLOTS ################################# '
     # Create all plots
-    arbin_plots_layout = create_single_panel_plot(single_cycles_df)
+    arbin_plots_layout = create_single_panel_plot(single_cycles_df) # handles empty dfs in function
 
     ' ############################### MAKE NON-CYCLE CHECKIN PLOTS ################################# '
     import matplotlib.pyplot as plt
@@ -1038,7 +1061,9 @@ def main():
                 unique_x = sorted(set(x))
                 avg_y = [np.mean([y[i] for i in range(len(x)) if x[i] == val]) for val in unique_x]
                 table_data = list(zip(unique_x, avg_y))
-                table = plt.table(cellText=table_data, colLabels=['Cycle #', 'Average'], cellLoc='center', loc='bottom', bbox=[0.1, -0.3, 0.8, 0.2])
+
+                if not df.empty:
+                    table = plt.table(cellText=table_data, colLabels=['Cycle #', 'Average'], cellLoc='center', loc='bottom', bbox=[0.1, -0.3, 0.8, 0.2])
                 
                 # Save the figure
                 plot_filename = f"{name}.png"
@@ -1074,11 +1099,11 @@ def main():
                     print(y_range)
                     ax.set_ylim(y_min - 0.15 * y_range, y_max + 0.15 * y_range)
 
-                unique_x = sorted(set(x))
-                avg_y = [np.mean([y[i] for i in range(len(x)) if x[i] == val]) for val in unique_x]
-                table_data = list(zip(unique_x, avg_y))
-                table = plt.table(cellText=table_data, colLabels=['Cycle #', 'Average'], cellLoc='center', loc='bottom', bbox=[0.1, -0.3, 0.8, 0.2])
-                
+                    unique_x = sorted(set(x))
+                    avg_y = [np.mean([y[i] for i in range(len(x)) if x[i] == val]) for val in unique_x]
+                    table_data = list(zip(unique_x, avg_y))
+                    table = plt.table(cellText=table_data, colLabels=['Cycle #', 'Average'], cellLoc='center', loc='bottom', bbox=[0.1, -0.3, 0.8, 0.2])
+                    
                 # Save the figure
                 plot_filename = f"{name}.png"
                 fig.savefig(plot_filename, bbox_inches='tight')
@@ -1113,11 +1138,11 @@ def main():
                     y_range = y_max - y_min
                     ax.set_ylim(y_min - 0.15 * y_range, y_max + 0.15 * y_range)
 
-                unique_x = sorted(set(x))
-                avg_y = [np.mean([y[i] for i in range(len(x)) if x[i] == val]) for val in unique_x]
-                table_data = list(zip(unique_x, avg_y))
-                table = plt.table(cellText=table_data, colLabels=['Cycle #', 'Average'], cellLoc='center', loc='bottom', bbox=[0.1, -0.3, 0.8, 0.2])
-                
+                    unique_x = sorted(set(x))
+                    avg_y = [np.mean([y[i] for i in range(len(x)) if x[i] == val]) for val in unique_x]
+                    table_data = list(zip(unique_x, avg_y))
+                    table = plt.table(cellText=table_data, colLabels=['Cycle #', 'Average'], cellLoc='center', loc='bottom', bbox=[0.1, -0.3, 0.8, 0.2])
+                    
                 # Save the figure
                 plot_filename = f"{name}.png"
                 fig.savefig(plot_filename, bbox_inches='tight')
@@ -1150,10 +1175,10 @@ def main():
                     y_range = y_max - y_min
                     ax.set_ylim(y_min - 0.15 * y_range, y_max + 0.15 * y_range)
 
-                unique_x = sorted(set(x))
-                avg_y = [np.mean([y[i] for i in range(len(x)) if x[i] == val]) for val in unique_x]
-                table_data = list(zip(unique_x, avg_y))
-                table = plt.table(cellText=table_data, colLabels=['Cycle #', 'Average'], cellLoc='center', loc='bottom', bbox=[0.1, -0.3, 0.8, 0.2])
+                    unique_x = sorted(set(x))
+                    avg_y = [np.mean([y[i] for i in range(len(x)) if x[i] == val]) for val in unique_x]
+                    table_data = list(zip(unique_x, avg_y))
+                    table = plt.table(cellText=table_data, colLabels=['Cycle #', 'Average'], cellLoc='center', loc='bottom', bbox=[0.1, -0.3, 0.8, 0.2])
 
                 # Save the figure
                 plot_filename = f"{name}.png"
@@ -1186,11 +1211,11 @@ def main():
                     y_range = y_max - y_min
                     ax.set_ylim(y_min - 0.15 * y_range, y_max + 0.15 * y_range)
 
-                unique_x = sorted(set(x))
-                avg_y = [np.mean([y[i] for i in range(len(x)) if x[i] == val]) for val in unique_x]
-                table_data = list(zip(unique_x, avg_y))
-                table = plt.table(cellText=table_data, colLabels=['Cycle #', 'Average'], cellLoc='center', loc='bottom', bbox=[0.1, -0.3, 0.8, 0.2])
-                
+                    unique_x = sorted(set(x))
+                    avg_y = [np.mean([y[i] for i in range(len(x)) if x[i] == val]) for val in unique_x]
+                    table_data = list(zip(unique_x, avg_y))
+                    table = plt.table(cellText=table_data, colLabels=['Cycle #', 'Average'], cellLoc='center', loc='bottom', bbox=[0.1, -0.3, 0.8, 0.2])
+                    
                 # Save the figure
                 plot_filename = f"{name}.png"
                 fig.savefig(plot_filename, bbox_inches='tight')
@@ -1304,7 +1329,8 @@ def main():
         unique_x = sorted(set(x))
         avg_y = [np.mean([y[i] for i in range(len(x)) if x[i] == val]) for val in unique_x]
         table_data = list(zip(unique_x, avg_y))
-        table = plt.table(cellText=table_data, colLabels=['Cycle #', 'Average'], cellLoc='center', loc='bottom', bbox=[0.1, -0.3, 0.8, 0.2])
+        if not ec_optics_df.empty:
+            table = plt.table(cellText=table_data, colLabels=['Cycle #', 'Average'], cellLoc='center', loc='bottom', bbox=[0.1, -0.3, 0.8, 0.2])
         
         plot_filename = f"{y_variable}.png"
         fig.savefig(plot_filename, bbox_inches='tight')
