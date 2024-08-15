@@ -496,9 +496,11 @@ def extract_after_substring(path, substring):
     Returns:
         str: The portion of the path after the substring, or None if substring is not found.
     """
-    path_obj = Path(path)
+    #path_obj = Path(path)
     # Convert the path to a string and find the position of the substring
-    path_str = str(path_obj)
+    #path_str = str(path_obj)
+    
+    path_str = path # should work on both windows and mac
     
     index = path_str.find(substring)
     if index == -1:
