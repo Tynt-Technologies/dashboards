@@ -537,8 +537,11 @@ def check_path_exists(path):
 
 def get_local_paths(path_list):
     local_paths = []
+    print('accessing local paths', path_list)
     for path in path_list:
+        print('path to split', path)
         substring = 'google-drive-data/'
+        print('substring', substring)
         end_of_path = extract_after_substring(path, substring)
         print("Extracted Path:", end_of_path)
 
