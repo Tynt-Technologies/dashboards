@@ -1006,8 +1006,9 @@ def main():
 
         def get_image_and_description(index, image_paths, descriptions):
             print(image_paths)
-            if index < len(image_paths):
-                if not 'no_data' in image_paths[index]:
+            if not 'no_data' in image_paths[index] and len(image_paths) > 1:
+                if index < len(image_paths):
+    
                     image = crop_image(image_paths[index], photo_checkin_crop_box)
                     description = descriptions[index]
                     return pn.Column(
@@ -1015,8 +1016,15 @@ def main():
                         pn.pane.Image(image, width=600, height=400, align='start'),
                         pn.pane.Markdown(description),
                     )
-                else:
-                    return pn.pane.HTML("No content available")
+            elif not 'no_data' in image_paths[index] and len(image_paths) == 1:
+                image = crop_image(image_paths[index], photo_checkin_crop_box)
+                description = descriptions[index]
+                return pn.Column(
+                        pn.pane.Image(image, width=600, height=400, align='start'),
+                        pn.pane.Markdown(description),
+                    )
+            else:
+                return pn.pane.HTML("No content available")
 
 
     ' ############################### MAKE ARBIN PLOTS ################################# '
