@@ -448,15 +448,28 @@ def find_directory(base_path, target_directory):
                 return os.path.join(root, dir_name)
     return None
 
+import platform
 def search_shared_drives_data():
     # Define potential base paths to search (customize based on your setup)
-    base_paths = [
+    system = platform.system()
+    if system == 'Windows': # is pc
+        base_paths = [
+        os.path.expanduser('~'),     # Home directory
+        'C:\\',                      # Root of C: drive
+        'D:\\',                      # Root of D: drive, adjust if you have other drives
+        'E:\\'                       # Root of E: drive, adjust if needed
+        ]
+        
+    elif system == 'Darwin': # is mac
+        base_paths = [
         os.path.expanduser('~'),  # Home directory
         '/Volumes',               # Common mount points
         '/media',                 # Alternative common mount points
         '/mnt'                    # Alternative common mount points
-    ]
-
+        ]
+    else:
+        raise OSError("Unsupported operating system")
+    
     target_directory = 'Shared drives'
     sub_directory = 'Data'
 
