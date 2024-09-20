@@ -24,81 +24,6 @@ from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout, QComboBox, QPu
 from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout, QComboBox, QPushButton, QLabel, QCheckBox, QScrollArea, QFormLayout
 
 
-def get_user_input():
-    # Create a QApplication instance
-    app = QApplication([])
-
-    # Create a QWidget as the main window
-    window = QWidget()
-
-    # Use QInputDialog to get user input
-    user_input, ok = QInputDialog.getText(window, 'Input', 'Please enter a string:')
-
-    # Check if the user pressed OK
-    if ok:
-        print(f"You entered: {user_input}")
-
-    return user_input
-
-
-def get_user_input(options):
-    """
-    Create a dropdown menu for user selection using PySide6 and return the selected option.
-
-    Parameters:
-    - options: list of strings to display in the dropdown menu
-
-    Returns:
-    - The selected option as a string
-    """
-    app = QApplication([])
-
-    # Create the main window
-    window = QWidget()
-    window.setWindowTitle('Select an Option')
-
-    # Create a vertical layout
-    layout = QVBoxLayout()
-
-    # Create a label
-    label = QLabel('Please select an option:')
-    layout.addWidget(label)
-
-    # Create a dropdown menu (QComboBox)
-    dropdown = QComboBox()
-    dropdown.addItems(options)
-    layout.addWidget(dropdown)
-
-    # Create a button to confirm selection
-    button = QPushButton('OK')
-    layout.addWidget(button)
-
-    # Create a label to display the selected option
-    result_label = QLabel('')
-    layout.addWidget(result_label)
-
-    # Variable to store the selected option
-    selected_option = [None]
-
-    # Function to handle button click
-    def on_button_click():
-        selected_option[0] = dropdown.currentText()
-        result_label.setText(f"You selected: {selected_option[0]}")
-        print(f"You selected: {selected_option[0]}")
-        app.quit()
-
-    button.clicked.connect(on_button_click)
-
-    # Set the layout and show the window
-    window.setLayout(layout)
-    window.show()
-
-    # Execute the application and wait for the event loop to quit
-    app.exec()
-
-    return selected_option[0]
-
-
 def connect_to_local(dbname='postgres', user='postgres', password='postgres', host='database.tynt.io', port='8001'):
     """
     Establish a connection to the local database and return the connection and cursor.
@@ -139,37 +64,6 @@ def get_all_tables(conn, cursor):
             # print(table[0])
         # conn.close() # don't close here, as other functions need it. use finally
     return tables
-
-def get_wellplates(conn, cursor):
-    if conn and cursor:
-        sql_query = '''
-            SELECT * 
-            FROM tyntdatabase_wellplate 
-            LIMIT ALL 
-            OFFSET 0;
-        '''
-        cursor.execute(sql_query)
-        wellplates = cursor.fetchall()
-        column_names = [desc[0] for desc in cursor.description]
-        wellplates = pd.DataFrame(wellplates, columns=column_names)
-
-    return wellplates
-
-def get_wellplate_CAs(conn, cursor):
-    if conn and cursor:
-        sql_query = '''
-            SELECT * 
-            FROM tyntdatabase_wellplatecacheckin
-            LIMIT ALL 
-            OFFSET 0;
-        '''
-        cursor.execute(sql_query)
-        wellplatecas = cursor.fetchall()
-            # Fetch the column names
-        column_names = [desc[0] for desc in cursor.description]
-        wellplatecas = pd.DataFrame(wellplatecas, columns=column_names)
-        # print("Column names:", column_names)
-    return wellplatecas
 
 def get_eccheckins(conn, cursor):
     if conn and cursor:
@@ -239,12 +133,12 @@ def get_trds(conn, cursor):
 
     return trds
 
-def search_baseline_name(df, search_string):
+def search_trd_name(df, search_string):
     # Ensure 'baseline_version' is treated as string
-    df['baseline_version'] = df['baseline_version'].astype(str)
+    df['trd_name'] = df['trd_name'].astype(str)
     
     # Filter rows where 'baseline_version' exactly matches the search string
-    filtered_df = df[df['baseline_version'] == search_string]
+    filtered_df = df[df['trd_name'] == search_string]
     
     # Extract corresponding 'id' values
     ids = filtered_df['id'].tolist()
@@ -253,7 +147,6 @@ def search_baseline_name(df, search_string):
 
 
 def get_routes(conn, cursor):
-    '''baseline DF has ids for route ids but not the routes themselves, so we need to map these'''
     if conn and cursor:
         # Update SQL query to filter by trd_id
         sql_query = "SELECT id, route_name FROM tyntdatabase_route;"
@@ -265,19 +158,18 @@ def get_routes(conn, cursor):
 
     return routes_df
 
-
-def get_baseline_devices(conn, cursor, baseline_id):
+def get_trd_devices(conn, cursor, trd_id):
     if conn and cursor:
         # Update SQL query to filter by trd_id
         sql_query = '''
             SELECT * 
             FROM tyntdatabase_device
-            WHERE baseline_version_id = %s
+            WHERE trd_id = %s
             LIMIT ALL 
             OFFSET 0;
         '''
         # Execute the query with trd_id parameter
-        cursor.execute(sql_query, (baseline_id,))
+        cursor.execute(sql_query, (trd_id,))
         devices = cursor.fetchall()
         column_names = [desc[0] for desc in cursor.description]
         devices = pd.DataFrame(devices, columns=column_names)
@@ -490,24 +382,10 @@ def get_all_file_paths(folder_path):
 
     return file_paths
 
-'################## WARMUP BASELINE FUNCTIONS ############################### '
+'################## NEW TRD FUNCTIONS ############################### '
 
-def get_baselines(conn, cursor):
-    if conn and cursor:
-        sql_query = '''
-            SELECT * 
-            FROM tyntdatabase_baselineversion
-            LIMIT ALL 
-            OFFSET 0;
-        '''
-        cursor.execute(sql_query)
-        baselines = cursor.fetchall()
-        column_names = [desc[0] for desc in cursor.description]
-        baselines = pd.DataFrame(baselines, columns=column_names)
 
-    return baselines
-
-def create_dynamic_baseline_dialog(df, conn, cursor):
+def create_dynamic_trd_dialog(df, conn, cursor):
     # Create the application and the main window
     app = QApplication([])
     window = QWidget()
@@ -517,11 +395,11 @@ def create_dynamic_baseline_dialog(df, conn, cursor):
     main_layout = QVBoxLayout(window)
 
     # Label and first dropdown
-    label = QLabel("Select a Baseline Version:")
+    label = QLabel("Select a TRD:")
     main_layout.addWidget(label)
 
     first_dropdown = QComboBox()
-    first_dropdown.addItems(reversed(df['baseline_version'].values)) 
+    first_dropdown.addItems(reversed(df['trd_name'].values)) 
     main_layout.addWidget(first_dropdown)
 
     # Create a scroll area for checkboxes
@@ -540,10 +418,10 @@ def create_dynamic_baseline_dialog(df, conn, cursor):
             checkbox_layout.itemAt(i).widget().setParent(None)
         
         category = first_dropdown.currentText()
-        matching_ids = search_baseline_name(df, category)
-        baseline_id = matching_ids[0]
-        baseline_devices = get_baseline_devices(conn, cursor, baseline_id)
-        device_list = baseline_devices['device_name'].values  # Assuming trd_devices has 'device_name' column
+        matching_ids = search_trd_name(df, category)
+        trd_id = matching_ids[0]
+        trd_devices = get_trd_devices(conn, cursor, trd_id)
+        device_list = trd_devices['device_name'].values  # Assuming trd_devices has 'device_name' column
 
         for device in device_list:
             checkbox = QCheckBox(device)
@@ -557,15 +435,15 @@ def create_dynamic_baseline_dialog(df, conn, cursor):
     update_checkboxes()
 
     # Variables to hold the selection
-    selected_baseline_name = None
+    selected_trd_name = None
     selected_devices = []
 
     # Function to capture the selections
     def capture_selections():
-        nonlocal selected_baseline_name, selected_devices
-        selected_baseline_name = first_dropdown.currentText()
+        nonlocal selected_trd_name, selected_devices
+        selected_trd_name = first_dropdown.currentText()
         selected_devices = [checkbox.text() for checkbox in checkbox_widget.findChildren(QCheckBox) if checkbox.isChecked()]
-        print(f"Selected Baseline Name: {selected_baseline_name}")
+        print(f"Selected Baseline Name: {selected_trd_name}")
         print(f"Selected Devices: {selected_devices}")
         app.quit()  # Close the application
 
@@ -582,7 +460,7 @@ def create_dynamic_baseline_dialog(df, conn, cursor):
     app.exec()
 
     # Return the selections after the window is closed
-    return selected_baseline_name, selected_devices
+    return selected_trd_name, selected_devices
 
 from PIL import Image
 def create_gif(image_paths, output_path, duration=500):
@@ -782,15 +660,6 @@ def warmup_paths_only(local_paths):
 
     return warmup_paths_only
 
-def get_gif_path(folder):
-    files = os.listdir(folder)
-    gif_path = ''
-    for f in files:
-        if f.endswith('.gif'):
-            if 'cycle' in f:
-                gif_path = os.path.join(folder, f)
-    return gif_path
-
 def get_baseline_warmups(conn, cursor, device_id_list):
     if conn and cursor:
         device_id_list = [int(id) for id in device_id_list]
@@ -926,53 +795,38 @@ import panel as pn
 from bokeh.plotting import figure, output_file, show
 from bokeh.models import Label
 
+# Function to plot each y_variable
 def plot_boxplot_with_scatter(df, y_variables):
     cycle_plots = {}
     
     # Replace None with np.nan
     df = df.replace({None: np.nan})
     
-    # Define marker styles for different routes
-    marker_styles = {
-        'Ambient': 'o',  # Circle
-        'Demo': 's',  # Square
-        'Oven': '^',  # Triangle
-        'Samples': 'D',  # Diamond
-        'Weatherometer': 'x',} # X
-    
     for y_variable in y_variables:
-        fig, ax = plt.subplots(figsize=(12, 6))  # Increase figure width for space for legend
+        fig, ax = plt.subplots(figsize=(10, 6))
         
-        # Extract x, y, and route values
+        # Extract x and y values
         x = df['cycle_number'].values
         y = df[y_variable].values
-        route_names = df['route_name'].astype(str).values
         
         # Group y values by x values
         unique_x = sorted(set(x))
         box_data = [y[x == val] for val in unique_x]
         
-        # Create boxplot with light grey fill
+        # Create boxplot
         box = ax.boxplot(box_data, positions=np.arange(1, len(unique_x) + 1), widths=0.6, patch_artist=True, showmeans=True)
-        for patch in box['boxes']:
-            patch.set(facecolor='lightgrey')
         
-        # Overlay scatter plot with different marker shapes based on route_name
-        markers = {}
-        for xi, yi, route in zip(x, y, route_names):
+        # Overlay scatter plot
+        for xi, yi in zip(x, y):
             pos = np.where(np.array(unique_x) == xi)[0][0] + 1
-            marker = marker_styles.get(route, 'o')  # Default to circle if route not found
-            if route not in markers:
-                markers[route] = ax.scatter([], [], color='black', marker=marker, label=route)  # Initialize legend entry
-            ax.scatter(pos, yi, color='black', marker=marker)
-        
-        # Add legend to the right of the plot
-        ax.legend(handles=[markers[route] for route in markers], loc='center left', bbox_to_anchor=(1, 0.5), title='Route Name')
+            ax.scatter(pos, yi, color='black')
         
         # Calculate and display the mean for each group
         for i, pos in enumerate(np.arange(1, len(unique_x) + 1)):
             mean = np.nanmean(box_data[i])
+            #ax.text(pos, mean + 0.01, f'{mean:.2f}', ha='center', va='bottom', fontsize=8, color='blue')
             ax.text(pos, mean, f'{mean:.3f}', ha='left', va='center', fontsize=10, color='black', fontweight='bold')
+
 
         # Customize the plot
         ax.set_xticks(np.arange(1, len(unique_x) + 1))
@@ -986,13 +840,8 @@ def plot_boxplot_with_scatter(df, y_variables):
         fig.savefig(plot_filename, bbox_inches='tight')
         plt.close(fig)  # Close the figure to free memory
         cycle_plots[y_variable] = plot_filename
-
-        print(f"Length of box_data: {len(box_data)}")
-        print(f"Length of positions (unique_x): {len(unique_x)}")
     
     return cycle_plots
-
-
 
 
 
@@ -1069,303 +918,6 @@ def create_jmp_panel(ec_optics_df):
     # Create and return the Panel layout with the select widget and the plot
     layout = pn.Column(y_select, update_plot)
     return layout
-
-import pandas as pd
-import panel as pn
-
-import panel as pn
-import pandas as pd
-
-def create_interactive_jmp_panel(ec_optics_df):
-    # Define the list of y-values
-    y_values = [
-        'coulombic_efficiency', 'bleach_final_current', 'bleach_max_current',
-        'tint_final_current', 'tint_max_current', 'tint_charge_a', 'tint_charge_b',
-        'tint_charge_c', 'tint_charge_d', 'charge_in', 'charge_out', 
-        'tint_max_current_time', 'bleach_ten_time', 'bleach_five_time', 
-        'bleach_one_time', 'bleach_point_one_time', 'delta_initial_final_percentage',
-        'delta_max_min_percentage', 'final_percentage', 'initial_percentage',
-        'max_percentage', 'min_percentage', 'tint_ten_time', 'tint_five_time',
-        'tint_one_time', 'tint_point_one_time', 'tint_ten_a', 'tint_five_a',
-        'tint_one_a', 'tint_point_one_a', 'a_final', 'a_initial', 'a_max',
-        'a_min', 'tint_ten_b', 'tint_five_b', 'tint_one_b', 'tint_point_one_b',
-        'b_final', 'b_initial', 'b_max', 'b_min', 'tint_ten_cri', 'tint_five_cri',
-        'tint_one_cri', 'tint_point_one_cri', 'cri_final', 'cri_initial',
-        'cri_max', 'cri_min', 'tint_ten_l', 'tint_five_l', 'tint_one_l',
-        'tint_point_one_l', 'l_final', 'l_initial', 'l_max', 'l_min',
-        'deltaE_initial', 'local_path', 'server_path', 'deltaE_final',
-        'tint_five_deltaE', 'deltaE_min', 'tint_one_deltaE',
-        'tint_point_one_deltaE', 'tint_ten_deltaE', 'expected_VLT',
-        'mesh_width_checkin', 'tint_time_eighty_vlt'
-    ]
-
-    # Create a select widget for route selection
-    route_values = ['Plot All'] + ec_optics_df['route_name'].unique().tolist()
-    route_select = pn.widgets.Select(name='Select Route', options=route_values, value=route_values[0])
-
-    # Create a dynamic select widget for y-values based on the filtered DataFrame
-    y_select = pn.widgets.Select(name='Select Y Variable', options=y_values, value=y_values[0])
-
-    # Function to filter DataFrame based on the selected route
-    def filter_dataframe(route_name):
-        if route_name == 'Plot All':
-            return ec_optics_df  # Use the whole DataFrame
-        else:
-            return ec_optics_df[ec_optics_df['route_name'] == route_name]  # Filter by selected route_name
-
-    # Update the plot based on selected route and y-value
-    @pn.depends(route_select.param.value, y_select.param.value)
-    def update_plot(route, y_value):
-        filtered_df = filter_dataframe(route)
-        
-        if y_value is None:
-            return "Please select a y-value and ensure data is available."
-
-        if 'cycle_number' not in filtered_df.columns:
-            return "Error: 'cycle_number' column is missing from the DataFrame."
-
-        # Call the make_jmp_box function with the filtered DataFrame
-        plot = make_jmp_box(
-            filtered_df, 'cycle_number', y_value, 'device_id', y_value
-        )
-        
-        return plot
-
-    # Layout for the Panel dashboard
-    panel_layout = pn.Column(route_select, y_select, pn.panel(update_plot))
-    return panel_layout
-
-import panel as pn
-import pandas as pd
-
-# Dictionary of y-values with corresponding slider ranges
-y_value_ranges = {
-    'coulombic_efficiency': (-100, 100), 'bleach_final_current': (-100, 100),
-    'bleach_max_current': (-100, 100), 'tint_final_current': (-100, 100),
-    'tint_max_current': (-100, 100), 'tint_charge_a': (-100, 100),
-    'tint_charge_b': (-100, 100), 'tint_charge_c': (-100, 100),
-    'tint_charge_d': (-100, 100), 'charge_in': (-100, 100),
-    'charge_out': (-100, 100), 'tint_max_current_time': (-100, 100),
-    'bleach_ten_time': (-100, 100), 'bleach_five_time': (-100, 100),
-    'bleach_one_time': (-100, 100), 'bleach_point_one_time': (-100, 100),
-    'delta_initial_final_percentage': (-100, 100), 'delta_max_min_percentage': (-100, 100),
-    'final_percentage': (-100, 100), 'initial_percentage': (-100, 100),
-    'max_percentage': (-100, 100), 'min_percentage': (-100, 100),
-    'tint_ten_time': (-100, 100), 'tint_five_time': (-100, 100),
-    'tint_one_time': (-100, 100), 'tint_point_one_time': (-100, 100),
-    'tint_ten_a': (-100, 100), 'tint_five_a': (-100, 100),
-    'tint_one_a': (-100, 100), 'tint_point_one_a': (-100, 100),
-    'a_final': (-100, 100), 'a_initial': (-100, 100), 'a_max': (-100, 100),
-    'a_min': (-100, 100), 'tint_ten_b': (-100, 100), 'tint_five_b': (-100, 100),
-    'tint_one_b': (-100, 100), 'tint_point_one_b': (-100, 100),
-    'b_final': (-100, 100), 'b_initial': (-100, 100), 'b_max': (-100, 100),
-    'b_min': (-100, 100), 'tint_ten_cri': (-100, 100), 'tint_five_cri': (-100, 100),
-    'tint_one_cri': (-100, 100), 'tint_point_one_cri': (-100, 100),
-    'cri_final': (-100, 100), 'cri_initial': (-100, 100), 'cri_max': (-100, 100),
-    'cri_min': (-100, 100), 'tint_ten_l': (-100, 100), 'tint_five_l': (-100, 100),
-    'tint_one_l': (-100, 100), 'tint_point_one_l': (-100, 100), 'l_final': (-100, 100),
-    'l_initial': (-100, 100), 'l_max': (-100, 100), 'l_min': (-100, 100),
-    'deltaE_initial': (-100, 100), 'local_path': (-100, 100), 'server_path': (-100, 100),
-    'deltaE_final': (-100, 100), 'tint_five_deltaE': (-100, 100), 'deltaE_min': (-100, 100),
-    'tint_one_deltaE': (-100, 100), 'tint_point_one_deltaE': (-100, 100),
-    'tint_ten_deltaE': (-100, 100), 'expected_VLT': (-100, 100),
-    'mesh_width_checkin': (-100, 100), 'tint_time_eighty_vlt': (-100, 100)
-}
-
-import panel as pn
-import pandas as pd
-
-
-
-def create_interactive_jmp_panel_old(ec_optics_df):
-    # Define route selector
-    route_values = ['Plot All'] + ec_optics_df['route_name'].unique().tolist()
-    route_select = pn.widgets.Select(name='Select Route', options=route_values, value=route_values[0])
-
-    # Function to filter DataFrame based on the selected route
-    def filter_dataframe(route_name):
-        if route_name == 'Plot All':
-            return ec_optics_df  # Use the whole DataFrame
-        else:
-            return ec_optics_df[ec_optics_df['route_name'] == route_name]  # Filter by selected route_name
-
-    # Function to create a row for each y-value
-    def create_row(y_value):
-        # Get the initial filtered DataFrame
-        filtered_df = filter_dataframe(route_select.value)
-
-        # Get the slider range from the y_value_ranges dictionary
-        slider_range = y_value_ranges.get(y_value, (-100, 100))
-
-        # Create a RangeSlider for the y-value
-        range_slider = pn.widgets.RangeSlider(name=f'Select Range for {y_value}', start=slider_range[0], end=slider_range[1], value=slider_range)
-
-        # Function to calculate the percentage of values within the slider range
-        def calculate_percentage(slider_value):
-            within_range = filtered_df[(filtered_df[y_value] >= slider_value[0]) & (filtered_df[y_value] <= slider_value[1])]
-            total_values = len(filtered_df)
-            
-            if total_values == 0:
-                return "No values in the selected range."
-            
-            percentage = (len(within_range) / total_values) * 100
-            return f"{percentage:.2f}% of values are within the selected range."
-
-        # Dynamic Markdown pane for percentage display
-        percentage_display = pn.pane.Markdown(calculate_percentage(range_slider.value))
-
-        # Update the percentage display when the slider changes
-        @pn.depends(range_slider.param.value, watch=True)
-        def update_percentage(slider_value):
-            filtered_df = filter_dataframe(route_select.value)
-            percentage_display.object = calculate_percentage(slider_value)
-
-        # Create the plot
-        plot = make_jmp_box(filtered_df, 'cycle_number', y_value, 'device_id', y_value)
-
-        # Update the plot when the route selection changes
-        @pn.depends(route_select.param.value, watch=True)
-        def update_plot(route):
-            filtered_df = filter_dataframe(route)
-            plot.object = make_jmp_box(filtered_df, 'cycle_number', y_value, 'device_id', y_value)
-
-        # Combine everything into a row
-        row = pn.Column(range_slider, percentage_display, plot)
-        return row
-
-    # Create a layout with the route selector at the top
-    layout = pn.Column(route_select)
-
-    # Create a row for each y-value
-    for y_value in y_value_ranges.keys():
-        layout.append(create_row(y_value))
-
-    return layout
-
-# Example dictionary of y-values with corresponding slider ranges
-y_value_ranges = {
-    'coulombic_efficiency': (0, 200), 
-    'bleach_final_current': (-10, 50),
-    'tint_time_eighty_vlt': (0, 200),
-    'deltaE_initial': (0,20),
-    'final_percentage': (0, 100), 
-    'initial_percentage': (0, 100),
-    'min_percentage': (0, 100),
-    'a_initial': (-30,30), 
-    'tint_ten_a': (-30,30), 
-    'b_initial': (-30,30), 
-    'tint_ten_b': (-30,30), 
-    # Add more y-values as needed...
-}
-
-def create_interactive_jmp_panel(ec_optics_df):
-    # Define route selector
-    route_values = ['Plot All'] + ec_optics_df['route_name'].unique().tolist()
-    route_select = pn.widgets.Select(name='Select Route', options=route_values, value=route_values[0])
-
-    # Function to filter DataFrame based on the selected route
-    def filter_dataframe(route_name):
-        if route_name == 'Plot All':
-            return ec_optics_df  # Use the whole DataFrame
-        else:
-            return ec_optics_df[ec_optics_df['route_name'] == route_name]  # Filter by selected route_name
-
-    # Function to create a row for each y-value
-    def create_row(y_value):
-        # Get the initial filtered DataFrame
-        filtered_df = filter_dataframe(route_select.value)
-
-        # Get the slider range from the y_value_ranges dictionary
-        slider_range = y_value_ranges.get(y_value, (-100, 100))
-
-        # Create a RangeSlider for the y-value
-        range_slider = pn.widgets.RangeSlider(name=f'Select Range for {y_value}', start=slider_range[0], end=slider_range[1], value=slider_range)
-
-        # Function to calculate the percentage of values within the slider range
-        def calculate_percentage(slider_value):
-            within_range = filtered_df[(filtered_df[y_value] >= slider_value[0]) & (filtered_df[y_value] <= slider_value[1])]
-            total_values = len(filtered_df)
-            
-            if total_values == 0:
-                return "No values in the selected range.", None, None
-            
-            percentage = (len(within_range) / total_values) * 100
-
-            # Determine icon color
-            if percentage == 100:
-                icon = "✅"  # Green checkmark
-            elif percentage > 0:
-                icon = "⚠️"  # Yellow warning sign
-            else:
-                icon = "❌"  # Red cross
-
-            # Find highest cycle number and corresponding device name
-            if not within_range.empty:
-                max_cycle_row = within_range.loc[within_range['cycle_number'].idxmax()]
-                highest_cycle = max_cycle_row['cycle_number']
-                device_name = max_cycle_row['device_id']
-            else:
-                highest_cycle, device_name = None, None
-
-            output_text = (
-                f"Percentage within range: {percentage:.2f}% {icon}\n"
-                f"Highest cycle number: {highest_cycle} (Device: {device_name})\n"
-                "Average cycle number at failure: "
-            )
-
-            return output_text, percentage, icon
-
-        # Dynamic Markdown pane for percentage display
-        percentage_display = pn.pane.Markdown(calculate_percentage(range_slider.value)[0])
-
-        # Update the percentage display when the slider changes
-        @pn.depends(range_slider.param.value, watch=True)
-        def update_percentage(slider_value):
-            filtered_df = filter_dataframe(route_select.value)
-            percentage_display.object, _, _ = calculate_percentage(slider_value)
-
-        # Create the plot
-        plot = make_jmp_box(filtered_df, 'cycle_number', y_value, 'device_id', y_value)
-
-        # Update the plot when the route selection changes
-        @pn.depends(route_select.param.value, watch=True)
-        def update_plot(route):
-            filtered_df = filter_dataframe(route)
-            plot.object = make_jmp_box(filtered_df, 'cycle_number', y_value, 'device_id', y_value)
-
-        # Combine everything into a row
-        row = pn.Column(range_slider, percentage_display, plot)
-        return row
-
-    # Create a layout with the route selector at the top
-    layout = pn.Column(route_select)
-
-    # Create a row for each y-value
-    for y_value in y_value_ranges.keys():
-        layout.append(create_row(y_value))
-
-    return layout
-
-
-
-# TESTING AREA
-def testing_area():
-    ec_optics_df = pd.read_csv('ec_optics_df.csv')
-    ec_optics_df['coulombic_efficiency'] *= 100
-    print(ec_optics_df)
-    print(ec_optics_df.columns)
-    #panel_layout = create_interactive_jmp_panel(ec_optics_df)
-    panel_layout = create_interactive_jmp_panel(ec_optics_df)
-    #panel_layout.servable()
-    template = pn.template.FastListTemplate(
-            title='Baseline Reporting Dashboard',
-            main=panel_layout,
-            accent_base_color="#00564a",
-            header_background="#00564a",
-        )
-    template.show()
-
-
 
 
 

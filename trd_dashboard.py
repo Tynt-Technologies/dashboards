@@ -22,8 +22,7 @@ import re
 import panel as pn
 from PIL import Image
 import io
-from scripts.tynt_panel_trd_functions import *
-from scripts.tynt_panel_baseline_functions import *
+from scripts.tynt_trd_functions import *
 from scripts.html_functions import *
 import panel as pn
 from PIL import Image
@@ -797,29 +796,28 @@ def crop_image(image_path, crop_box):
 
 def main():
     conn, cursor = connect_to_local()
-    all_baselines_df = get_baselines(conn, cursor)
-    print(all_baselines_df)
-    all_baselines_list = reversed(all_baselines_df['baseline_version'].values)
-    print(all_baselines_df.columns)
+    all_trds_df = get_trds(conn, cursor)
+    print(all_trds_df)
+    print(all_trds_df.columns)
 
-    # category = 'OBL3-Contender2'
-    selected_baseline_name, selected_devices = create_dynamic_baseline_dialog(all_baselines_df, conn, cursor)
-    print(f"Selected Baseline Version: {selected_baseline_name}")
+    # category = 'TRD0299'
+    selected_trd_name, selected_devices = create_dynamic_trd_dialog(all_trds_df, conn, cursor)
+    print(f"Selected TRD: {selected_trd_name}")
     print(f"Selected Devices: {selected_devices}")
 
-    search_string = selected_baseline_name
+    search_string = selected_trd_name
 
     if search_string and selected_devices:
         print(f"Search String Entered: {search_string}")
         # Get notes
-        sub_df = all_baselines_df[all_baselines_df['baseline_version'] == search_string]
+        sub_df = all_trds_df[all_trds_df['trd_name'] == search_string]
         notes_string = sub_df['notes'].values[0]
         # Get ID and Devices
-        matching_ids = search_baseline_name(all_baselines_df, search_string)
-        baseline_id = matching_ids[0]
-        baseline_devices = get_baseline_devices(conn, cursor, baseline_id)
+        matching_ids = search_trd_name(all_trds_df, search_string)
+        trd_id = matching_ids[0]
+        trd_devices = get_trd_devices(conn, cursor, trd_id)
         # Get list of IDs for the specified device names
-        device_id_list = baseline_devices.loc[baseline_devices['device_name'].isin(selected_devices), 'id'].tolist()
+        device_id_list = trd_devices.loc[trd_devices['device_name'].isin(selected_devices), 'id'].tolist()
         print('IDs corresponding to selected devices: ', device_id_list)
         device_list = selected_devices
         print('device list: ', device_id_list)
@@ -830,105 +828,78 @@ def main():
 
         baseline_eccheckins = get_trd_eccheckins(conn, cursor, device_id_list)
         path_list = baseline_eccheckins['server_path'].values 
-
         path_list = [item for item in path_list if item is not None]
         print('old ALL path list: ', path_list)
-        local_all_paths = []
         local_all_paths = get_local_paths(path_list)
         print('new ALL path list:', local_all_paths)
 
-        ' ################################ BUILD ENTIRE DASHBOARD AS EMPTY FIRST #################################### '
-
-        ' ###### SIDEBAR ###### '
-
-        '#### PAGE 1: EMPTIES ####### '
+        # GET THE PARENT DIRECTORIES OF EACH DEVICE
+        unique_dirs = extract_unique_parent_dirs(local_all_paths)
+        #unique_dirs = ['/Users/sarahpearce/Library/CloudStorage/GoogleDrive-sarah@tynt.io/Shared drives/Data/Devices/2024/07/20240703/20240703_PB_4171/']
+        
+        # SET EVERYTHING TO NONE FIRST 
         keyence_paths = ['None Found']
         local_warmup_paths = ['None Found']
         optics_folder_paths = ['In Progress']
         photo_folder_paths = ['None Found']
         arbin_paths = ['None Found']
 
-        '#### PAGE 2: EMPTIES ####### '
-        warmup_path_list = []
-        local_warmup_paths = []
+        # GET THE ARBIN PATHS
+        arbin_paths = []
+        for path in unique_dirs:
+            arbin_path = get_all_arbin_folders(path) 
+            arbin_paths.append(arbin_path)
+        print(unique_dirs)
+        print(arbin_paths)
+
+        # GET THE WARMUP PATHS
+        baseline_warmups = get_baseline_warmups(conn, cursor, device_id_list)
+        warmup_path_list = baseline_warmups['server_path'].values 
+        warmup_path_list = [item for item in warmup_path_list if item is not None]
+        print('old warmup path list: ', warmup_path_list)
+        local_warmup_paths = get_local_paths(warmup_path_list)
+        print('local warmup path list: ', local_warmup_paths) 
+
+        # GET THE WARMUP PHOTO PATHS
+        # Set all warmup values to None before looking for the data
         warmup_folder_paths = []
         warmup_ecs_corresponding_to_photos = []
         cycling_folder_paths = []
         warmup_folder_paths = []
         all_folders_list = []
         photo_folder_paths = []
-
-        '#### PAGE 3: EMPTIES ####### '
-        '#### PAGE 4: EMPTIES ####### '
-        '#### PAGE 5: EMPTIES ####### '
-
-        '#### PAGE 1: GET DATA ####### '
-        ' ############################# CALLING ALL HTML FUNCTIONS FOR DEVICE OVERVIEW TAB ################### '
-        # adding route_name to baseline devices dataframe
-        routes_df = get_routes(conn, cursor)
-        baseline_devices = get_baseline_devices(conn, cursor, baseline_id)
-        baseline_devices = pd.merge(baseline_devices, routes_df, on='route_id')
-        print('FINAL TABLE OF DEVICE DATA', baseline_devices.columns)
-        table_html = all_devices_table(baseline_devices)
-        # Bullet list of gathered data
-        warmups = local_warmup_paths
-        o_checks = optics_folder_paths
-        p_checks = photo_folder_paths
-        arbin = arbin_paths
-        keyence = keyence_paths
-        report_html = generate_devices_report(warmups, o_checks, p_checks, arbin, keyence)
-
-        '#### PAGE 2: GET DATA ####### '
-        unique_dirs = []
-        arbin_paths = []
-        if local_all_paths: 
-            # GET THE PARENT DIRECTORIES OF EACH DEVICE
-            unique_dirs = extract_unique_parent_dirs(local_all_paths)
-            #unique_dirs = ['/Users/sarahpearce/Library/CloudStorage/GoogleDrive-sarah@tynt.io/Shared drives/Data/Devices/2024/07/20240703/20240703_PB_4171/']
-            if unique_dirs:
-                for path in unique_dirs:
-                    arbin_path = get_all_arbin_folders(path) 
-                    arbin_paths.append(arbin_path)
-            print('Device Parent Directories Found:', unique_dirs)
-            print('Device Arbin paths found:', arbin_paths)
-
-        baseline_warmups_df = get_baseline_warmups(conn, cursor, device_id_list) 
-        if not baseline_warmups_df.empty: 
-            warmup_path_list = baseline_warmups_df['server_path'].values 
-            warmup_path_list = [item for item in warmup_path_list if item is not None]
-            print('old warmup path list: ', warmup_path_list)
-            local_warmup_paths = get_local_paths(warmup_path_list)
-            print('local warmup path list: ', local_warmup_paths) 
-
-        # GET THE WARMUP PHOTO PATHS
         if len(unique_dirs) > 0:
             test = unique_dirs[0]
 
             all_folders_list = find_folders_recursively(test)
             photo_folder_paths = find_photo_folder_paths(all_folders_list)
             
+            cycling_folder_paths = find_cycle_paths(photo_folder_paths)
             warmup_folder_paths = find_warmup_paths(photo_folder_paths)
+
             print('Warmup Photo Folders:', warmup_folder_paths)
-            warmup_gif_paths = []
-            for warmup_folder_path in warmup_folder_paths:
-                gif_path = get_gif_path(warmup_folder_path) # returns '' if no gif found
-                warmup_gif_paths.append(gif_path)
-            print('Warmup Folder GIF files:', warmup_gif_paths)
             warmup_ecs_corresponding_to_photos = get_corresp_ec_filepaths(warmup_folder_paths)
             print('Warmup Folder EC files:', warmup_ecs_corresponding_to_photos)
 
-
-            cycling_folder_paths = find_cycle_paths(photo_folder_paths)
             print('Cycling Photo Folders:', cycling_folder_paths)
-            cycling_gif_paths = []
-            for cycling_folder_path in cycling_folder_paths:
-                gif_path = get_gif_path(cycling_folder_path) # returns '' if no gif found
-                cycling_gif_paths.append(gif_path)
-            print('Cycling Folder GIF files:', cycling_gif_paths)
             cycling_ecs_corresponding_to_photos = get_corresp_ec_filepaths(cycling_folder_paths)
             print('Cycling Folder EC files:', cycling_ecs_corresponding_to_photos)
 
+        ' ############################# CALLING ALL HTML FUNCTIONS FOR DEVICE OVERVIEW TAB ################### '
+        # adding route_name to baseline devices dataframe
+        routes_df = get_routes(conn, cursor)
+        trd_devices = get_trd_devices(conn, cursor, trd_id)
+        trd_devices = pd.merge(trd_devices, routes_df, on='route_id')
 
+        table_html = all_devices_table(trd_devices)
+        # Bullet list of gathered data
+        warmups = local_warmup_paths
+        o_checks = optics_folder_paths
+        p_checks = photo_folder_paths
+        arbin = arbin_paths
+        keyence = keyence_paths
+
+        report_html = generate_devices_report(warmups, o_checks, p_checks, arbin, keyence)
 
         # final_df = get_all_raw_data(local_all_paths) # local all paths includes only things uploaded to db!!
 
@@ -966,75 +937,128 @@ def main():
 
 
         # DIRECTORY WHERE IMAGES ARE STORED
-        # SET TO NONE FIRST
+        ' ######################## SET TO NONE FIRST #################### '
         formatted_schedule = ''
         combined_plot = ''
         photo_step_descriptions = ['No Cycling Steps Found', 'No Cycling Steps Found']
-        image_pane =  'No Pre-Cycling Photo Checkin GIFs Found' 
-        schedule_and_plot_pane = 'No Pre-Cycling EC Files Found'
+        photo_checkin_crop_box = () 
+        formatted_schedule = 'No schedule found'
+        combined_plot = 'No raw data found'
+        efficiency_text = 'No CE found'
+        image_pane = 'No photo data found' 
+        schedule_and_plot_pane = ''
+        slider = ''
         #image_dir ='/Users/sarahpearce/Library/CloudStorage/GoogleDrive-sarah@tynt.io/Shared drives/Data/Devices/2024/07/20240703/20240703_PB_4172/precycle1/pictures'
+        
+        ' ################ IF WARMUP STUFF EXISTS ####################### '
         if warmup_folder_paths is not None and warmup_folder_paths:
             image_dir = warmup_folder_paths[0]
-
+            photo_checkin_crop_box = (450, 1200, 2400, 3300) 
+            image_paths = [os.path.join(image_dir, fname) for fname in sorted(os.listdir(image_dir)) if fname.endswith(('.png', '.jpg', '.jpeg', '.gif'))]
+            print('Accessing local gdrive warmup image paths....', image_paths)
+        
+            # FILEPATH FOR CORRESPONDING EC FILE TO IMAGES
+            # file_path = '/Users/sarahpearce/Library/CloudStorage/GoogleDrive-sarah@tynt.io/Shared drives/Data/Devices/2024/07/20240703/20240703_PB_4172/precycle1/20240703_PB_4172_precycle1.tyntEC'
             file_path = warmup_ecs_corresponding_to_photos[0]
-            gif_path = warmup_gif_paths[0]
             photo_step_descriptions = photo_step_description(file_path)
 
-            def impane_and_schedule(file_path, formatted_schedule, combined_plot, efficiency_text, gif_path, photo_step_descriptions):
+            def impane_and_schedule(file_path, formatted_schedule, combined_plot, efficiency_text, image_paths, photo_step_descriptions):
                 schedule_and_plot_pane = pn.Column(
                     pn.pane.Markdown('### File: \n' + str(file_path)),
                     pn.pane.Markdown('### Schedule: \n' + formatted_schedule),
                     pn.pane.Markdown('### Corresponding EC file:'),
                     combined_plot, efficiency_text)
-                if gif_path: 
-                    file = gif_path.split('/')[-1]
-                    device_title = file.split('.')[0]
-                    gif_pane = pn.pane.Image(gif_path, width=600, height=400, align='start')
-                    image_pane = pn.Column(
-                        pn.pane.Markdown(str(device_title)), gif_pane)
-                else: 
-                    image_pane = pn.pane.Markdown('### No Photo Checkin GIF Found')
-                return image_pane, schedule_and_plot_pane 
-                
-            # Get full schedule and plot EC curve with the photos FOR WARMUP
-            formatted_schedule, combined_plot, efficiency_text = plot_data_and_print_schedule(file_path)
-            image_pane, schedule_and_plot_pane = impane_and_schedule(file_path, formatted_schedule, combined_plot, efficiency_text, gif_path, photo_step_descriptions)
+                # Create a slider widget
+                slider = pn.widgets.IntSlider(name='Check-in Photo #', start=0, end=len(image_paths) - 1, step=1)
+                # Bind the slider to the function with additional parameters
+                image_pane = pn.bind(get_image_and_description, slider, image_paths, photo_step_descriptions)
+
+                return image_pane, schedule_and_plot_pane, slider
+
+            def get_image_and_description(index, image_paths, descriptions):
+                print(image_paths)
+                if not 'no_data' in image_paths[index] and len(image_paths) > 1:
+                    if index < len(image_paths):
+        
+                        image = crop_image(image_paths[index], photo_checkin_crop_box)
+                        description = descriptions[index]
+                        return pn.Column(
+                            pn.Row(slider),
+                            pn.pane.Image(image, width=600, height=400, align='start'),
+                            pn.pane.Markdown(description),
+                        )
+                elif not 'no_data' in image_paths[index] and len(image_paths) == 1:
+                    image = crop_image(image_paths[index], photo_checkin_crop_box)
+                    description = descriptions[index]
+                    return pn.Column(
+                            pn.pane.Image(image, width=600, height=400, align='start'),
+                            pn.pane.Markdown(description),
+                        )
+                else:
+                    return pn.pane.HTML("No content available")
             
+            if file_path:  
+                # Get full schedule and plot EC curve with the photos FOR WARMUP
+                formatted_schedule, combined_plot, efficiency_text = plot_data_and_print_schedule(file_path)
+                image_pane, schedule_and_plot_pane, slider = impane_and_schedule(file_path, formatted_schedule, combined_plot, efficiency_text, image_paths, photo_step_descriptions)
+                #image_slider_layout = get_image_and_description(image_paths, photo_step_descriptions)
 
-        # FOR CYCLING PHOTOS 
-        formatted_schedule = ''
-        combined_plot = ''
-        photo_step_descriptions = ['No Cycling Steps Found', 'No Cycling Steps Found']
-        c_image_pane =  'No Cycling Photo Checkin GIFs Found' 
-        c_schedule_and_plot_pane = 'No Cycling EC Files Found'
-        
-        cycling_photo_rows = ''
+        ' ################ IF CYCLING STUFF EXISTS ####################### '
+        cycling_photo_row = ''
         if cycling_folder_paths is not None and cycling_folder_paths:
-            rows = []
-            for i in range(len(cycling_ecs_corresponding_to_photos)):
-                c_file_path = cycling_ecs_corresponding_to_photos[i]
-                c_gif_path = cycling_gif_paths[i]
-                c_photo_step_descriptions = photo_step_description(c_file_path)
-                c_formatted_schedule, c_combined_plot, c_efficiency_text = plot_data_and_print_schedule(c_file_path)
-                c_image_pane, c_schedule_and_plot_pane = impane_and_schedule(c_file_path, c_formatted_schedule, c_combined_plot, c_efficiency_text, c_gif_path, c_photo_step_descriptions)
-                row_i = pn.Row(c_image_pane, c_schedule_and_plot_pane)
-                rows.append(row_i)
-            cycling_photo_rows = pn.Column(*rows)
-        
-            #row_names = cycling_gif_paths
-            #row_names = []
-            #for path in cycling_gif_paths:
-            #    print(path)
-            #    path = str(path).split('/')[-1]
-            #    print(path)
-            #    row_names.append(path)
-            #row_dict = {name: row for name, row in zip(row_names, rows)}
-            #def update_display(selected_row_name):
-            #    return row_dict[selected_row_name]
-            #dropdown = pn.widgets.Select(name='Select Device/Cycle', options=row_names)
-            #selected_row = pn.bind(update_display, selected_row_name=dropdown.param.value)
-            #cycling_photo_rows = pn.Column(dropdown, selected_row)
+            rows = len(cycling_folder_paths)
+            photo_checkin_crop_box = (450, 1200, 2400, 3300)
+            c_image_paths = [os.path.join(cycling_folder_paths[0], fname) for fname in sorted(os.listdir(cycling_folder_paths[0])) if fname.endswith(('.png', '.jpg', '.jpeg', '.gif'))]
+            print('Accessing local gdrive cycling folder paths....', image_paths)
+            c_file_path = cycling_ecs_corresponding_to_photos[0]
+            c_photo_step_descriptions = photo_step_description(c_file_path)
+            # Get full schedule and plot EC curve with the photos FOR WARMUP
+            c_formatted_schedule, c_combined_plot, c_efficiency_text = plot_data_and_print_schedule(c_file_path)
+            c_image_pane, c_schedule_and_plot_pane, c_slider = impane_and_schedule(c_file_path, c_formatted_schedule, c_combined_plot, c_efficiency_text, c_image_paths, c_photo_step_descriptions)
+            #image_slider_layout = get_image_and_description(image_paths, photo_step_descriptions)
+            
+            print('CYCLING PHOTO SHIT')
+            print(cycling_folder_paths)
+            photo_checkin_crop_box = (450, 1200, 2400, 3300)
+            def create_photo_row(cycling_folder_paths, cycling_ecs_corresponding_to_photos):
+                image_panes = []
+                for i in range(len(cycling_folder_paths)):
+                    print('Processing photo path', cycling_folder_paths[i])
+                    image_paths = [os.path.join(cycling_folder_paths[i], fname) for fname in sorted(os.listdir(cycling_folder_paths[i])) if fname.endswith(('.png', '.jpg', '.jpeg'))]
+                    # photo_step_descriptions = photo_step_description(cycling_ecs_corresponding_to_photos[i])
+                    for index, image_path in enumerate(image_paths):
+                        image = crop_image(image_path, photo_checkin_crop_box)
+                        image_panes.append(
+                            pn.Column(
+                                #str(cycling_folder_paths[i]),
+                                pn.pane.Image(image, width=600, height=400, align='start'),
+                            )
+                        )
+                return pn.Row(*image_panes, sizing_mode='stretch_width')
 
+            def create_photo_row(cycling_folder_paths, cycling_ecs_corresponding_to_photos):
+                photo_checkin_crop_box = (450, 1200, 2400, 3300)  # Define the crop box
+                image_panes = []
+                
+                for i in range(len(cycling_folder_paths)):
+                    print('Processing photo path', cycling_folder_paths[i])
+                    image_paths = [os.path.join(cycling_folder_paths[i], fname) for fname in sorted(os.listdir(cycling_folder_paths[i])) if fname.endswith(('.png', '.jpg', '.jpeg'))]
+                    # Add title for each folder
+                    image_panes.append(
+                        pn.Row(
+                            pn.pane.Markdown(f"### {str(cycling_folder_paths[i]).split('/')[-3]+str(cycling_folder_paths[i]).split('/')[-2]}"),  # Title for the row
+                            *[
+                                pn.pane.Image(crop_image(image_path, photo_checkin_crop_box), width=600, height=400, align='start')
+                                for image_path in image_paths
+                            ],
+                            sizing_mode='stretch_width'
+                        )
+                    )
+                return pn.Column(*image_panes, sizing_mode='stretch_width')
+
+            cycling_photo_row = create_photo_row(cycling_folder_paths, cycling_ecs_corresponding_to_photos)
+
+                
 
 
     ' ############################### MAKE ARBIN PLOTS ################################# '
@@ -1044,54 +1068,24 @@ def main():
     ' ############################### MAKE NON-CYCLE CHECKIN PLOTS ################################# '
     import matplotlib.pyplot as plt
 
-    def create_plot_from_df(checkin_df_dict, baseline_devices):
+    def create_plot_from_df(checkin_df_dict):
         plots = {}
-        marker_styles = {
-        'Ambient': 'o',  # Circle
-        'Demo': 's',  # Square
-        'Oven': '^',  # Triangle
-        'Samples': 'D',  # Diamond
-        'Weatherometer': 'x',} # X
-
         for name, df in checkin_df_dict.items():
             print(name, df)
-
-            print(baseline_devices.columns)
-            print(df.columns)
-            baseline_devices = baseline_devices.rename(columns={'id': 'device_id'})
-            print(baseline_devices.columns)
-            print(df.columns)
-            df_with_route = pd.merge(baseline_devices, df, on='device_id')
-            print('route df', df_with_route)
-            df = df_with_route
-            
             if name == 'df_bubbleareacheckin':
                 x = df['check_in_age']
                 y = df['check_in_bubblearea']
                 age_units = df['check_in_age_unit'].astype(str)  # Convert to string if needed
-                route_names = df['route_name']  # Assuming this is the column with route names
-
                 # Create the plot
                 fig, ax = plt.subplots()
-
-                # Loop over unique age units
                 unique_units = age_units.unique()
                 for unit in unique_units:
                     unit_mask = age_units == unit
-                    for route in route_names[unit_mask].unique():
-                        route_mask = route_names == route
-                        combined_mask = unit_mask & route_mask
-                        ax.scatter(
-                            x[combined_mask], 
-                            y[combined_mask], 
-                            label=f"{unit} - {route}",
-                            marker=marker_styles.get(route, 'o')  # Default to 'o' if route not in dictionary
-                        )
-                
+                    ax.scatter(x[unit_mask], y[unit_mask], label=unit)
                 # Add labels and legend
                 ax.set_xlabel('Check In Age')
                 ax.set_ylabel('Bubble Area (%)')
-                ax.legend(title='Age Unit and Route Name')
+                ax.legend(title='Age Unit')
                 ax.set_title('Device Bubble Area Check-In')
 
                 if not df.empty:
@@ -1101,13 +1095,13 @@ def main():
                     print(y_range)
                     ax.set_ylim(y_min - 0.15 * y_range, y_max + 0.15 * y_range)
 
-                    unique_x = sorted(set(x))
-                    avg_y = [np.mean([y[i] for i in range(len(x)) if x[i] == val]) for val in unique_x]
-                    table_data = list(zip(unique_x, avg_y))
+                unique_x = sorted(set(x))
+                avg_y = [np.mean([y[i] for i in range(len(x)) if x[i] == val]) for val in unique_x]
+                table_data = list(zip(unique_x, avg_y))
 
-                    if not df.empty:
-                        table = plt.table(cellText=table_data, colLabels=['Cycle #', 'Average'], cellLoc='center', loc='bottom', bbox=[0.1, -0.3, 0.8, 0.2])
-                    
+                if not df.empty:
+                    table = plt.table(cellText=table_data, colLabels=['Cycle #', 'Average'], cellLoc='center', loc='bottom', bbox=[0.1, -0.3, 0.8, 0.2])
+                
                 # Save the figure
                 plot_filename = f"{name}.png"
                 fig.savefig(plot_filename, bbox_inches='tight')
@@ -1119,29 +1113,21 @@ def main():
                 x = df['check_in_age']
                 y = df['check_in_bottom_thickness_cm']
                 age_units = df['check_in_age_unit'].astype(str)  # Convert to string if needed
-                route_names = df['route_name'] 
 
+            
                 # Create the plot
                 fig, ax = plt.subplots()
-                    # Loop over unique age units
                 unique_units = age_units.unique()
                 for unit in unique_units:
                     unit_mask = age_units == unit
-                    for route in route_names[unit_mask].unique():
-                        route_mask = route_names == route
-                        combined_mask = unit_mask & route_mask
-                        ax.scatter(
-                            x[combined_mask], 
-                            y[combined_mask], 
-                            label=f"{unit} - {route}",
-                            marker=marker_styles.get(route, 'o')  # Default to 'o' if route not in dictionary
-                        )
-
+                    ax.scatter(x[unit_mask], y[unit_mask], label=unit)
+                    
                 # Add labels and legend
                 ax.set_xlabel('Check In Age')
                 ax.set_ylabel('Bottom Thickness (cm)')
-                ax.legend(title='Age Unit and Route Name')
+                ax.legend(title='Age Unit')
                 ax.set_title('Device Thickness Check-In')
+
 
                 if not df.empty:
                     # Adjust y-axis limits
@@ -1154,41 +1140,34 @@ def main():
                     avg_y = [np.mean([y[i] for i in range(len(x)) if x[i] == val]) for val in unique_x]
                     table_data = list(zip(unique_x, avg_y))
                     table = plt.table(cellText=table_data, colLabels=['Cycle #', 'Average'], cellLoc='center', loc='bottom', bbox=[0.1, -0.3, 0.8, 0.2])
+                    
+                # Save the figure
+                plot_filename = f"{name}.png"
+                fig.savefig(plot_filename, bbox_inches='tight')
+                plt.close(fig)  # Close the figure to free memory
 
-                    # Save the figure
-                    plot_filename = f"{name}.png"
-                    fig.savefig(plot_filename, bbox_inches='tight')
-                    plt.close(fig)  # Close the figure to free memory
-
-                    plots[name] = plot_filename  # Save filename to dictionary
+                plots[name] = plot_filename  # Save filename to dictionary
 
             elif name == 'df_hazecheckin':
                 x = df['check_in_age']
                 y = df['check_in_haze']
                 age_units = df['check_in_age_unit'].astype(str)  # Convert to string if needed
-                route_names = df['route_name']  # Assuming this is the column with route names
 
                 # Create the plot
                 fig, ax = plt.subplots()
-
                 unique_units = age_units.unique()
+
                 for unit in unique_units:
                     unit_mask = age_units == unit
-                    for route in route_names[unit_mask].unique():
-                        route_mask = route_names == route
-                        combined_mask = unit_mask & route_mask
-                        ax.scatter(
-                            x[combined_mask],
-                            y[combined_mask],
-                            label=f"{unit} - {route}",
-                            marker=marker_styles.get(route, 'o')  # Default to 'o' if route not in dictionary
-                        )
-                
+                    ax.scatter(x[unit_mask], y[unit_mask], label=unit)
+                    
                 # Add labels and legend
                 ax.set_xlabel('Check In Age')
                 ax.set_ylabel('Haze (%)')
-                ax.legend(title='Age Unit and Route Name')
+                ax.legend(title='Age Unit')
                 ax.set_title('Haze Check-In')
+
+                                # Adjust y-axis limits
 
                 if not df.empty:
                     # Adjust y-axis limits
@@ -1200,40 +1179,31 @@ def main():
                     avg_y = [np.mean([y[i] for i in range(len(x)) if x[i] == val]) for val in unique_x]
                     table_data = list(zip(unique_x, avg_y))
                     table = plt.table(cellText=table_data, colLabels=['Cycle #', 'Average'], cellLoc='center', loc='bottom', bbox=[0.1, -0.3, 0.8, 0.2])
-                
+                    
                 # Save the figure
                 plot_filename = f"{name}.png"
                 fig.savefig(plot_filename, bbox_inches='tight')
                 plt.close(fig)  # Close the figure to free memory
 
-                plots[name] = plot_filename  # Save filename to dictionary
 
+                plots[name] = plot_filename  # Save filename to dictionary
+            
             elif name == 'df_weightcheckin':
                 x = df['check_in_age']
                 y = df['check_in_weight_g']
                 age_units = df['check_in_age_unit'].astype(str)  # Convert to string if needed
-                route_names = df['route_name']  # Assuming this is the column with route names
 
                 # Create the plot
                 fig, ax = plt.subplots()
-
                 unique_units = age_units.unique()
                 for unit in unique_units:
                     unit_mask = age_units == unit
-                    for route in route_names[unit_mask].unique():
-                        route_mask = route_names == route
-                        combined_mask = unit_mask & route_mask
-                        ax.scatter(
-                            x[combined_mask],
-                            y[combined_mask],
-                            label=f"{unit} - {route}",
-                            marker=marker_styles.get(route, 'o')  # Default to 'o' if route not in dictionary
-                        )
+                    ax.scatter(x[unit_mask], y[unit_mask], label=unit)
 
                 # Add labels and legend
                 ax.set_xlabel('Check In Age')
                 ax.set_ylabel('Weight (g)')
-                ax.legend(title='Age Unit and Route Name')
+                ax.legend(title='Age Unit')
                 ax.set_title('Device Weight Check-In')
 
                 if not df.empty:
@@ -1258,28 +1228,18 @@ def main():
                 x = df['check_in_age']
                 y = df['check_in_width_um']
                 age_units = df['check_in_age_unit'].astype(str)  # Convert to string if needed
-                route_names = df['route_name']  # Assuming this is the column with route names
 
                 # Create the plot
                 fig, ax = plt.subplots()
-
                 unique_units = age_units.unique()
                 for unit in unique_units:
                     unit_mask = age_units == unit
-                    for route in route_names[unit_mask].unique():
-                        route_mask = route_names == route
-                        combined_mask = unit_mask & route_mask
-                        ax.scatter(
-                            x[combined_mask],
-                            y[combined_mask],
-                            label=f"{unit} - {route}",
-                            marker=marker_styles.get(route, 'o')  # Default to 'o' if route not in dictionary
-                        )
+                    ax.scatter(x[unit_mask], y[unit_mask], label=unit)
 
                 # Add labels and legend
                 ax.set_xlabel('Check In Age')
                 ax.set_ylabel('Mesh Width (um)')
-                ax.legend(title='Age Unit and Route Name')
+                ax.legend(title='Age Unit')
                 ax.set_title('Mesh Width Check-In')
 
                 if not df.empty:
@@ -1292,40 +1252,30 @@ def main():
                     avg_y = [np.mean([y[i] for i in range(len(x)) if x[i] == val]) for val in unique_x]
                     table_data = list(zip(unique_x, avg_y))
                     table = plt.table(cellText=table_data, colLabels=['Cycle #', 'Average'], cellLoc='center', loc='bottom', bbox=[0.1, -0.3, 0.8, 0.2])
-
+                    
                 # Save the figure
                 plot_filename = f"{name}.png"
                 fig.savefig(plot_filename, bbox_inches='tight')
                 plt.close(fig)  # Close the figure to free memory
 
                 plots[name] = plot_filename  # Save filename to dictionary
-
+            
             elif name == 'df_internalresistancecheckin':
                 x = df['check_in_age']
                 y = df['check_in_internal_resistance']
                 age_units = df['check_in_age_unit'].astype(str)  # Convert to string if needed
-                route_names = df['route_name']  # Assuming this is the column with route names
 
                 # Create the plot
                 fig, ax = plt.subplots()
-
                 unique_units = age_units.unique()
                 for unit in unique_units:
                     unit_mask = age_units == unit
-                    for route in route_names[unit_mask].unique():
-                        route_mask = route_names == route
-                        combined_mask = unit_mask & route_mask
-                        ax.scatter(
-                            x[combined_mask],
-                            y[combined_mask],
-                            label=f"{unit} - {route}",
-                            marker=marker_styles.get(route, 'o')  # Default to 'o' if route not in dictionary
-                        )
+                    ax.scatter(x[unit_mask], y[unit_mask], label=unit)
 
                 # Add labels and legend
                 ax.set_xlabel('Check In Age')
                 ax.set_ylabel('Internal Resistance (Ohm)')
-                ax.legend(title='Age Unit and Route Name')
+                ax.legend(title='Age Unit')
                 ax.set_title('Internal Resistance Check-In')
 
                 if not df.empty:
@@ -1340,10 +1290,14 @@ def main():
                 plt.close(fig)  # Close the figure to free memory
 
                 plots[name] = plot_filename  # Save filename to dictionary
-        
+
+            
+
+            
+
         return plots
 
-    plots = create_plot_from_df(checkin_df_dict, baseline_devices)
+    plots = create_plot_from_df(checkin_df_dict)
 
     print('ALL PLOTS', plots)
 
@@ -1356,69 +1310,35 @@ def main():
     # Create all plots
     #jmp_plots_layout = create_single_panel_plot(single_cycles_df)
     ec_optics_df = get_ec_optics_joined(conn, cursor, device_id_list)
-    ec_optics_df['coulombic_efficiency'] *= 100
-    print('Original JMP dataframe:', ec_optics_df)
+    print(ec_optics_df.columns)
     ec_optics_df = ec_optics_df.loc[:, ~ec_optics_df.columns.duplicated()]
     jmp_plots_layout = create_jmp_panel(ec_optics_df)
-    # save ec_optics_df to work on separately! 
-    # Save ec_optics_df to a CSV file in the current folder
-    '''#### WANT TO SAVE THE WITH ROUTE INFORMATION ABOVE AND HAVE A ROUTE DROPDOWN AS WELL'''
-
-    # Non-interactive plots
-    print('cycling dataframe columns:', ec_optics_df.columns)
-    baseline_devices = baseline_devices.rename(columns={'id': 'device_id'})
-    print('cycling dataframe columns:', baseline_devices.columns)
-    print('renamed baseline df', baseline_devices)
-
-    baseline_devices['device_id'] = baseline_devices['device_id'].astype(int)
-    ec_optics_df['device_id'] = ec_optics_df['device_id'].astype(int)
-    ec_optics_df_with_route = pd.merge(baseline_devices, ec_optics_df, on='device_id')
-    ec_optics_df = ec_optics_df_with_route
-    print('With route JMP dataframe:', ec_optics_df)
-
-    ec_optics_df.to_csv('ec_optics_df.csv', index=False) # WILL USE WITH CREATE_JMP_PANEL
-    interactive_slider_jmp_layout = create_interactive_jmp_panel(ec_optics_df)
 
     y_variables = ['coulombic_efficiency', 'tint_max_current', 'tint_charge_a', 'tint_charge_b',
-                'tint_charge_c', 'tint_max_current_time', 'delta_initial_final_percentage',
-                'delta_max_min_percentage', 'final_percentage', 'initial_percentage',
-                'max_percentage', 'min_percentage', 'tint_ten_time', 'tint_five_time',
-                'a_initial', 'b_initial', 'deltaE_initial', 'deltaE_final',
-                'mesh_width_checkin', 'tint_time_eighty_vlt',
-                'tint_ten_b', 'tint_ten_a']
-
+        'tint_charge_c', 
+        'tint_max_current_time', 'delta_initial_final_percentage',
+        'delta_max_min_percentage', 'final_percentage', 'initial_percentage',
+        'max_percentage', 'min_percentage', 'tint_ten_time', 'tint_five_time',
+        'a_initial',  'b_initial', 
+        'deltaE_initial', 'deltaE_final',
+        'mesh_width_checkin', 'tint_time_eighty_vlt']
     cycle_plots = {}
     ec_optics_df = ec_optics_df.fillna(np.nan)
-    print('NA Filled df:', ec_optics_df)
-
-    # Define marker shapes for each route_name
-    marker_shapes = {
-        'Ambient': 'o',  # Circle
-        'Demo': 's',  # Square
-        'Oven': '^',  # Triangle
-        'Samples': 'D',  # Diamond
-        'Weatherometer': 'x',} # X
-
     for y_variable in y_variables:
         x = ec_optics_df['cycle_number'].values
         x = x.astype(np.int64)
         y = ec_optics_df[y_variable].values
+        print(y)
         y = y.astype(np.int64)
+        print(y)
         fig, ax = plt.subplots(figsize=(10, 6))
-        
-        # Plot data points with different shapes based on route_name
-        for route_name, marker_shape in marker_shapes.items():
-            mask = ec_optics_df['route_name'] == route_name
-            ax.scatter(x[mask], y[mask], color='black', marker=marker_shape, label=route_name, s=300) 
-        
+        ax.scatter(x, y, color='black') # label='Scatter Data')
         ax.set_xticks(np.arange(0, 200, 100))
         ax.set_xlim(-50, 200)
-        
         # Add labels
         ax.set_xlabel('Cycle #')
         ax.set_ylabel(y_variable)
-        ax.set_title(f'{y_variable} vs Cycle #')
-        ax.legend(title='Route Name')
+        ax.set_title(y_variable + ' vs Cycle #')
 
         if np.issubdtype(y.dtype, np.number) and np.any(np.isfinite(y)):
             # Adjust y-axis limits
@@ -1431,26 +1351,28 @@ def main():
         unique_x = sorted(set(x))
         for val in unique_x:
             box_data.append([y[i] for i in range(len(x)) if x[i] == val])
-        
-        # Boxplot with light grey fill
-        boxprops = dict(facecolor='lightgrey', color='black')  # Light grey fill
-        whiskerprops = dict(color='black')
-        capprops = dict(color='black')
+        # Boxplot
+        boxprops = dict(facecolor='lightgreen', color='darkgreen')  # Soft light green fill
+        whiskerprops = dict(color='darkgreen')  # Dark green whiskers
+        capprops = dict(color='darkgreen')  # Dark green caps
 
-        ax.boxplot(box_data, positions=range(1, len(unique_x) + 1), widths=0.5, patch_artist=True, 
-                labels=[str(val) for val in unique_x], boxprops=boxprops, whiskerprops=whiskerprops, capprops=capprops)
-
+        #ax.boxplot(box_data, positions=range(1, len(unique_x) + 1), widths=0.5, patch_artist=True, 
+        #    labels=[str(val) for val in unique_x], 
+        #    boxprops=boxprops, whiskerprops=whiskerprops, capprops=capprops)
+                # Calculate averages of y for each unique x
+        #ax.legend()
+        # Add table to the figure
+                # Calculate averages of y for each unique x
+        unique_x = sorted(set(x))
+        avg_y = [np.mean([y[i] for i in range(len(x)) if x[i] == val]) for val in unique_x]
+        table_data = list(zip(unique_x, avg_y))
         if not ec_optics_df.empty:
-            avg_y = [np.mean([y[i] for i in range(len(x)) if x[i] == val]) for val in unique_x]
-            table_data = list(zip(unique_x, avg_y))
             table = plt.table(cellText=table_data, colLabels=['Cycle #', 'Average'], cellLoc='center', loc='bottom', bbox=[0.1, -0.3, 0.8, 0.2])
-
+        
         plot_filename = f"{y_variable}.png"
         fig.savefig(plot_filename, bbox_inches='tight')
         plt.close(fig)  # Close the figure to free memory
-
-        cycle_plots[y_variable] = plot_filename
-
+        cycle_plots[y_variable] = plot_filename 
 
     image_panes = [pn.pane.PNG(filename, width=600, height=600) for filename in cycle_plots.values()]
     cycle_jmp_layout = pn.GridBox(*image_panes, ncols=2, sizing_mode='stretch_width')
@@ -1461,7 +1383,6 @@ def main():
     df = ec_optics_df 
     #df = df[df['cycle_number'] != 102] #### REMOVE ME TO PLOT 102!!!!!
     #df['cycle_number'] = df['cycle_number'].replace(3, 2) #### REMOVE ME TO PLOT 3!!!!!
-    # Generate plots
 
     print('Static Plot JMP dataframe:', df)
     print('Static JMP columns', df.columns)
@@ -1473,6 +1394,7 @@ def main():
     # Create a Panel layout to display plots
     #image_panes = [pn.pane.PNG(filename, width=600, height=400) for filename in cycle_plots.values()]
     cycle_jmp_layout = pn.GridBox(*image_panes, ncols=2, sizing_mode='stretch_width')
+
 
     '###### DASHBOARD ######### '
     
@@ -1505,27 +1427,25 @@ def main():
 
     section1 = pn.Column('## All Devices in Baseline Run:', pn.pane.HTML(table_html), pn.pane.HTML(report_html))
     section2 = pn.Column('## Warmup Data', pn.Row(image_pane, schedule_and_plot_pane),)
-    section3 = pn.Column('## Cycling Data', cycling_photo_rows,)
+    section3 = pn.Column('## Cycling Data',pn.Row(cycling_photo_row),)
     section4 = pn.Column('## Checkin Summary Values from Database', 
-                         #pn.Row(pn.Column('## Interactive Plots:'), pn.Column(jmp_plots_layout)),
+                         pn.Row(pn.Column('## Interactive Plots:'), pn.Column(jmp_plots_layout)),
                          pn.Row(pn.Row('## Static Plots (Non-cycle Checkins):'), 
                                 pn.Row(noncycle_jmp_layout)),
                         pn.Row(pn.Row('## Static Plots (Cycing Checkins):'), 
                                                     pn.Row(cycle_jmp_layout)))
-    section5 = pn.Column('## Interactive Failure Analysis', pn.Column(interactive_slider_jmp_layout))
-    section6 = pn.Column('## Arbin Summary Values from Database', arbin_plots_layout)
-    section7 = pn.Column('## Keyence Images',)
-    section8 = pn.Column('## Durability Predictions (keras/tensorflow modeling)',)
+    section5 = pn.Column('## Arbin Summary Values from Database', arbin_plots_layout)
+    section6 = pn.Column('## Keyence Images',)
+    section7 = pn.Column('## Durability Predictions (keras/tensorflow modeling)',)
 
     main_content = pn.Tabs(
         ('Devices', section1),
         ('Warmup Data', section2),
         ('Cycling Data', section3),
         ('JMP Summary Plots', section4),
-        ('Failure Analysis', section5),
-        ('Arbin Summary Plots', section6),
-        ('Keyence Images', section7),
-        ('Predictive Modeling', section8),
+        ('Arbin Summary Plots', section5),
+        ('Keyence Images', section6),
+        ('Predictive Modeling', section7),
     )
     
         # Define custom CSS for 3D effect
@@ -1535,10 +1455,9 @@ def main():
     button2 = pn.widgets.Button(name='Go to Warmup Data', button_type='primary')
     button3 = pn.widgets.Button(name='Go to Raw Cycling Data', button_type='primary')
     button4 = pn.widgets.Button(name='Go to Summarized Checkin Cycling Data', button_type='primary')
-    button5 = pn.widgets.Button(name='Go to Interactive Failure Analysis', button_type='primary')
-    button6 = pn.widgets.Button(name='Go to Summarized Arbin Cycling Data', button_type='primary')
-    button7 = pn.widgets.Button(name='Go to Durability Predictions', button_type='primary')
-    button8 = pn.widgets.Button(name='Go to Keyence Images', button_type='primary')
+    button5 = pn.widgets.Button(name='Go to Summarized Arbin Cycling Data', button_type='primary')
+    button6 = pn.widgets.Button(name='Go to Durability Predictions', button_type='primary')
+    button7 = pn.widgets.Button(name='Go to Keyence Images', button_type='primary')
     # Define callback functions for buttons
     def go_to_section1(event):
         main_content.active = 0
@@ -1554,8 +1473,6 @@ def main():
         main_content.active = 5
     def go_to_section7(event):
         main_content.active = 6
-    def go_to_section8(event):
-        main_content.active = 7
     # Attach callbacks to buttons
     button1.on_click(go_to_section1)
     button2.on_click(go_to_section2)
@@ -1564,19 +1481,18 @@ def main():
     button5.on_click(go_to_section5)
     button6.on_click(go_to_section6)
     button7.on_click(go_to_section7)
-    button8.on_click(go_to_section8)
 
     # Define the content for the sidebar
     sidebar = pn.Column(
         pn.pane.PNG(logo_path, width=150, height=100),
-            pn.pane.Markdown("### Description of Baseline Run: "),
+            pn.pane.Markdown("### Description of TRD: "),
             pn.pane.Markdown('Name: ' + search_string), 
             pn.pane.Markdown("Database Notes: " + notes_string),  
             pn.Column(button1, button2, button3, button4, button5, button6, button7)
     )
 
     template = pn.template.FastListTemplate(
-        title='Baseline Reporting Dashboard',
+        title='TRD Reporting Dashboard',
         sidebar=sidebar,
         main=main_content,
         accent_base_color="#00564a",

@@ -1,0 +1,44 @@
+digraph G {
+concentrate=true;
+splines="ortho";
+rankdir="LR";
+subgraph legend{
+    rank = min;
+    label = "legend";
+    Legend [shape=none, margin=0, label = <
+        <table cellspacing="0" cellpadding="0" border="1"><tr><td>Code2flow Legend</td></tr><tr><td>
+        <table cellspacing="0">
+        <tr><td>Regular function</td><td width="50px" bgcolor='#cccccc'></td></tr>
+        <tr><td>Trunk function (nothing calls this)</td><td bgcolor='#966F33'></td></tr>
+        <tr><td>Leaf function (this calls nothing else)</td><td bgcolor='#6db33f'></td></tr>
+        <tr><td>Function call</td><td><font color='black'>&#8594;</font></td></tr>
+        </table></td></tr></table>
+        >];
+}node_3d6e7d37 [label="0: (global)()" name="baseline_warmup_dashboard::(global)" shape="rect" style="rounded,filled" fillcolor="#966F33" ];
+node_33ca23df [label="224: connect_to_local()" name="baseline_warmup_dashboard::connect_to_local" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_f2cab152 [label="38: create_dynamic_dialog()" name="baseline_warmup_dashboard::create_dynamic_dialog" shape="rect" style="rounded,filled" fillcolor="#966F33" ];
+node_defef412 [label="788: crop_image()" name="baseline_warmup_dashboard::crop_image" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_bf7b9af9 [label="454: extract_after_substring()" name="baseline_warmup_dashboard::extract_after_substring" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_d374cb13 [label="481: get_local_paths()" name="baseline_warmup_dashboard::get_local_paths" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_2e70f1bd [label="398: get_trd_devices()" name="baseline_warmup_dashboard::get_trd_devices" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_89b0835a [label="311: get_trd_eccheckins()" name="baseline_warmup_dashboard::get_trd_eccheckins" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_310f86c8 [label="800: main()" name="baseline_warmup_dashboard::main" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_a6de5977 [label="364: search_trd_name()" name="baseline_warmup_dashboard::search_trd_name" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_3d6e7d37 -> node_310f86c8 [color="#CC79A7" penwidth="2"];
+node_f2cab152 -> node_2e70f1bd [color="#56B4E9" penwidth="2"];
+node_f2cab152 -> node_a6de5977 [color="#56B4E9" penwidth="2"];
+node_d374cb13 -> node_bf7b9af9 [color="#009E73" penwidth="2"];
+node_310f86c8 -> node_33ca23df [color="#000000" penwidth="2"];
+node_310f86c8 -> node_defef412 [color="#000000" penwidth="2"];
+node_310f86c8 -> node_defef412 [color="#000000" penwidth="2"];
+node_310f86c8 -> node_d374cb13 [color="#000000" penwidth="2"];
+node_310f86c8 -> node_d374cb13 [color="#000000" penwidth="2"];
+node_310f86c8 -> node_89b0835a [color="#000000" penwidth="2"];
+subgraph cluster_70b03e14 {
+    node_f2cab152 node_33ca23df node_89b0835a node_a6de5977 node_2e70f1bd node_bf7b9af9 node_d374cb13 node_defef412 node_310f86c8 node_3d6e7d37;
+    label="File: baseline_warmup_dashboard";
+    name="baseline_warmup_dashboard";
+    style="filled";
+    graph[style=dotted];
+};
+}
