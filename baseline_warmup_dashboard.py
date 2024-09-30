@@ -29,6 +29,9 @@ import panel as pn
 from PIL import Image
 import os
 
+# Sarah's mac:  source dashboard_env/bin/activate  
+
+
 hv.extension('bokeh')
 pn.extension()
 
@@ -934,12 +937,11 @@ def main():
 
         ' ################### GETTING ACTUAL ARBIN DATA ##################### '
         arbin_df = get_devices_arbin_checkins(conn, cursor, device_id_list)
-        print('ARBIN CHECKS!!!!!!', arbin_df.columns)
-        if not arbin_df.empty: # if it's not empty
+        if not arbin_df.empty: 
             single_cycles_df = get_devices_single_cycle_arbin_checkins(conn, cursor, arbin_df)
-            print('ARBIN SINGLE CHECKS!!!!!!', single_cycles_df.columns)
-        else: # EMPTY!
+        else: 
             single_cycles_df = pd.DataFrame(data=[])
+            print('NO DATA WARNING: No Arbin Data Uplaoded')
 
         ' ################### GETTING SINGLE VAL CHECKIN DATA ##################### '
         checkin_df_dict = get_haze_weight_meshwidth_devicewidth_bubbles_ir_joined(conn, cursor, device_id_list)
@@ -972,6 +974,23 @@ def main():
         photo_step_descriptions = ['No Cycling Steps Found', 'No Cycling Steps Found']
         image_pane =  'No Pre-Cycling Photo Checkin GIFs Found' 
         schedule_and_plot_pane = 'No Pre-Cycling EC Files Found'
+
+        # Define function to create panes for cycling and warmup files
+        def impane_and_schedule(file_path, formatted_schedule, combined_plot, efficiency_text, gif_path, photo_step_descriptions):
+            schedule_and_plot_pane = pn.Column(
+                pn.pane.Markdown('### File: \n' + str(file_path)),
+                pn.pane.Markdown('### Schedule: \n' + formatted_schedule),
+                pn.pane.Markdown('### Corresponding EC file:'),
+                combined_plot, efficiency_text)
+            if gif_path: 
+                file = gif_path.split('/')[-1]
+                device_title = file.split('.')[0]
+                gif_pane = pn.pane.Image(gif_path, width=600, height=400, align='start')
+                image_pane = pn.Column(
+                    pn.pane.Markdown(str(device_title)), gif_pane)
+            else: 
+                image_pane = pn.pane.Markdown('### No Photo Checkin GIF Found')
+            return image_pane, schedule_and_plot_pane 
         #image_dir ='/Users/sarahpearce/Library/CloudStorage/GoogleDrive-sarah@tynt.io/Shared drives/Data/Devices/2024/07/20240703/20240703_PB_4172/precycle1/pictures'
         if warmup_folder_paths is not None and warmup_folder_paths:
             image_dir = warmup_folder_paths[0]
@@ -979,22 +998,6 @@ def main():
             file_path = warmup_ecs_corresponding_to_photos[0]
             gif_path = warmup_gif_paths[0]
             photo_step_descriptions = photo_step_description(file_path)
-
-            def impane_and_schedule(file_path, formatted_schedule, combined_plot, efficiency_text, gif_path, photo_step_descriptions):
-                schedule_and_plot_pane = pn.Column(
-                    pn.pane.Markdown('### File: \n' + str(file_path)),
-                    pn.pane.Markdown('### Schedule: \n' + formatted_schedule),
-                    pn.pane.Markdown('### Corresponding EC file:'),
-                    combined_plot, efficiency_text)
-                if gif_path: 
-                    file = gif_path.split('/')[-1]
-                    device_title = file.split('.')[0]
-                    gif_pane = pn.pane.Image(gif_path, width=600, height=400, align='start')
-                    image_pane = pn.Column(
-                        pn.pane.Markdown(str(device_title)), gif_pane)
-                else: 
-                    image_pane = pn.pane.Markdown('### No Photo Checkin GIF Found')
-                return image_pane, schedule_and_plot_pane 
                 
             # Get full schedule and plot EC curve with the photos FOR WARMUP
             formatted_schedule, combined_plot, efficiency_text = plot_data_and_print_schedule(file_path)
@@ -1054,15 +1057,15 @@ def main():
         'Weatherometer': 'x',} # X
 
         for name, df in checkin_df_dict.items():
-            print(name, df)
+            #print(name, df)
 
-            print(baseline_devices.columns)
-            print(df.columns)
+            #print(baseline_devices.columns)
+            #print(df.columns)
             baseline_devices = baseline_devices.rename(columns={'id': 'device_id'})
-            print(baseline_devices.columns)
-            print(df.columns)
+            #print(baseline_devices.columns)
+            #print(df.columns)
             df_with_route = pd.merge(baseline_devices, df, on='device_id')
-            print('route df', df_with_route)
+            #print('route df', df_with_route)
             df = df_with_route
             
             if name == 'df_bubbleareacheckin':
@@ -1345,7 +1348,7 @@ def main():
 
     plots = create_plot_from_df(checkin_df_dict, baseline_devices)
 
-    print('ALL PLOTS', plots)
+    #print('ALL PLOTS', plots)
 
 
     image_panes = [pn.pane.PNG(filename, width=400, height=400) for filename in plots.values()]
@@ -1367,122 +1370,37 @@ def main():
     # Non-interactive plots
     print('cycling dataframe columns:', ec_optics_df.columns)
     baseline_devices = baseline_devices.rename(columns={'id': 'device_id'})
-    print('cycling dataframe columns:', baseline_devices.columns)
-    print('renamed baseline df', baseline_devices)
+    #print('renamed baseline df', baseline_devices)
 
     baseline_devices['device_id'] = baseline_devices['device_id'].astype(int)
     ec_optics_df['device_id'] = ec_optics_df['device_id'].astype(int)
     ec_optics_df_with_route = pd.merge(baseline_devices, ec_optics_df, on='device_id')
     ec_optics_df = ec_optics_df_with_route
-    print('With route JMP dataframe:', ec_optics_df)
 
-    ec_optics_df.to_csv('ec_optics_df.csv', index=False) # WILL USE WITH CREATE_JMP_PANEL
-    interactive_slider_jmp_layout = create_interactive_jmp_panel(ec_optics_df)
-
-    y_variables = ['coulombic_efficiency', 'tint_max_current', 'tint_charge_a', 'tint_charge_b',
-                'tint_charge_c', 'tint_max_current_time', 'delta_initial_final_percentage',
-                'delta_max_min_percentage', 'final_percentage', 'initial_percentage',
-                'max_percentage', 'min_percentage', 'tint_ten_time', 'tint_five_time',
-                'a_initial', 'b_initial', 'deltaE_initial', 'deltaE_final',
-                'mesh_width_checkin', 'tint_time_eighty_vlt',
-                'tint_ten_b', 'tint_ten_a']
-
-    cycle_plots = {}
     ec_optics_df = ec_optics_df.fillna(np.nan)
     print('NA Filled df:', ec_optics_df)
+    if ec_optics_df.empty:
+        print('NO DATA WARNING: No JMP Data!')
+    ec_optics_df.to_csv('ec_optics_df.csv', index=False) # WILL USE WITH CREATE_JMP_PANEL
 
-    # Define marker shapes for each route_name
-    marker_shapes = {
-        'Ambient': 'o',  # Circle
-        'Demo': 's',  # Square
-        'Oven': '^',  # Triangle
-        'Samples': 'D',  # Diamond
-        'Weatherometer': 'x',} # X
+    " ####################### INTERACTIVE JMP THINGS (CYCLING) WITH SLIDER ############################## "
+    # Note: within dataframe, this function checks (1) if dataframe is empty
+    # then (2) for y variables with no data in the dataframe before plotting 
+    interactive_slider_jmp_layout = create_interactive_jmp_panel(ec_optics_df)
 
-    for y_variable in y_variables:
-        x = ec_optics_df['cycle_number'].values
-        x = x.astype(np.int64)
-        y = ec_optics_df[y_variable].values
-        y = y.astype(np.int64)
-        fig, ax = plt.subplots(figsize=(10, 6))
-        
-        # Plot data points with different shapes based on route_name
-        for route_name, marker_shape in marker_shapes.items():
-            mask = ec_optics_df['route_name'] == route_name
-            ax.scatter(x[mask], y[mask], color='black', marker=marker_shape, label=route_name, s=300) 
-        
-        ax.set_xticks(np.arange(0, 200, 100))
-        ax.set_xlim(-50, 200)
-        
-        # Add labels
-        ax.set_xlabel('Cycle #')
-        ax.set_ylabel(y_variable)
-        ax.set_title(f'{y_variable} vs Cycle #')
-        ax.legend(title='Route Name')
+    " ########################## INTERACTIVE JMP THINGS (CYCLING) WITHOUT SLIDER ######################### "
+    cycle_jmp_layout = create_static_cycling_jmp_panel(ec_optics_df)
+    # cycle_jmp_layout = create_static_jmp_panel(ec_optics_df)
+    # static_cycle_ jmp_layout = create_static_jmp_panel(ec_optics_df)
 
-        if np.issubdtype(y.dtype, np.number) and np.any(np.isfinite(y)):
-            # Adjust y-axis limits
-            y_min, y_max = y.min(), y.max()
-            y_range = y_max - y_min
-            ax.set_ylim(y_min - 0.15 * y_range, y_max + 0.15 * y_range)
-
-        # Create lists of y-values grouped by x-values
-        box_data = []
-        unique_x = sorted(set(x))
-        for val in unique_x:
-            box_data.append([y[i] for i in range(len(x)) if x[i] == val])
-        
-        # Boxplot with light grey fill
-        boxprops = dict(facecolor='lightgrey', color='black')  # Light grey fill
-        whiskerprops = dict(color='black')
-        capprops = dict(color='black')
-
-        ax.boxplot(box_data, positions=range(1, len(unique_x) + 1), widths=0.5, patch_artist=True, 
-                labels=[str(val) for val in unique_x], boxprops=boxprops, whiskerprops=whiskerprops, capprops=capprops)
-
-        if not ec_optics_df.empty:
-            avg_y = [np.mean([y[i] for i in range(len(x)) if x[i] == val]) for val in unique_x]
-            table_data = list(zip(unique_x, avg_y))
-            table = plt.table(cellText=table_data, colLabels=['Cycle #', 'Average'], cellLoc='center', loc='bottom', bbox=[0.1, -0.3, 0.8, 0.2])
-
-        plot_filename = f"{y_variable}.png"
-        fig.savefig(plot_filename, bbox_inches='tight')
-        plt.close(fig)  # Close the figure to free memory
-
-        cycle_plots[y_variable] = plot_filename
-
-
-    image_panes = [pn.pane.PNG(filename, width=600, height=600) for filename in cycle_plots.values()]
-    cycle_jmp_layout = pn.GridBox(*image_panes, ncols=2, sizing_mode='stretch_width')
-    # use ec_optics_df
     
-    # USING NEW FN TO GENERATE PRETTY JMP PLOTS
-
-    df = ec_optics_df 
-    #df = df[df['cycle_number'] != 102] #### REMOVE ME TO PLOT 102!!!!!
-    #df['cycle_number'] = df['cycle_number'].replace(3, 2) #### REMOVE ME TO PLOT 3!!!!!
-    # Generate plots
-
-    print('Static Plot JMP dataframe:', df)
-    print('Static JMP columns', df.columns)
-    if not df.empty:
-        cycle_plots = plot_boxplot_with_scatter(df, y_variables)
-        image_panes = [pn.pane.PNG(filename, width=600, height=400) for filename in cycle_plots.values()]
-    else: 
-        image_panes = [pn.Column('### No JMP Data to Display')]
-    # Create a Panel layout to display plots
-    #image_panes = [pn.pane.PNG(filename, width=600, height=400) for filename in cycle_plots.values()]
-    cycle_jmp_layout = pn.GridBox(*image_panes, ncols=2, sizing_mode='stretch_width')
-
     '###### DASHBOARD ######### '
     
     logo_path = os.path.join(os.getcwd(), 'figures', 'tynt_logo.png')
-
     # image_pane, schedule_and_plot_pane
     # cycling_image_pane, cycling_schedule_and_plot_pane
     # Package details of the check-in schedule
 
-    
     # REMOVE BUTTONS ON EITHER SIDE OF SLIDER 
     # Define button callbacks to adjust slider value
     #def increment_slider(event):

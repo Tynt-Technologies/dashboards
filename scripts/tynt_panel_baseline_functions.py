@@ -926,6 +926,10 @@ import panel as pn
 from bokeh.plotting import figure, output_file, show
 from bokeh.models import Label
 
+import matplotlib.pyplot as plt
+import numpy as np
+import panel as pn
+
 def plot_boxplot_with_scatter(df, y_variables):
     cycle_plots = {}
     
@@ -938,7 +942,8 @@ def plot_boxplot_with_scatter(df, y_variables):
         'Demo': 's',  # Square
         'Oven': '^',  # Triangle
         'Samples': 'D',  # Diamond
-        'Weatherometer': 'x',} # X
+        'Weatherometer': 'x',  # X
+    }
     
     for y_variable in y_variables:
         fig, ax = plt.subplots(figsize=(12, 6))  # Increase figure width for space for legend
@@ -948,49 +953,57 @@ def plot_boxplot_with_scatter(df, y_variables):
         y = df[y_variable].values
         route_names = df['route_name'].astype(str).values
         
-        # Group y values by x values
-        unique_x = sorted(set(x))
-        box_data = [y[x == val] for val in unique_x]
+        # Check if x or y is empty
+        if len(x) == 0 or len(y) == 0 or np.all(np.isnan(y)):
+            # If empty, create a placeholder plot or skip
+            print(f"No data available for {y_variable}. Skipping plot.")
+            plt.close(fig)  # Close the figure to free memory
+            cycle_plots[y_variable] = None
+        else:
+            # Group y values by x values
+            unique_x = sorted(set(x))
+            box_data = [y[x == val] for val in unique_x]
+            
+            # Create boxplot with light grey fill
+            box = ax.boxplot(box_data, positions=np.arange(1, len(unique_x) + 1), widths=0.6, patch_artist=True, showmeans=True)
+            for patch in box['boxes']:
+                patch.set(facecolor='lightgrey')
         
-        # Create boxplot with light grey fill
-        box = ax.boxplot(box_data, positions=np.arange(1, len(unique_x) + 1), widths=0.6, patch_artist=True, showmeans=True)
-        for patch in box['boxes']:
-            patch.set(facecolor='lightgrey')
-        
-        # Overlay scatter plot with different marker shapes based on route_name
-        markers = {}
-        for xi, yi, route in zip(x, y, route_names):
-            pos = np.where(np.array(unique_x) == xi)[0][0] + 1
-            marker = marker_styles.get(route, 'o')  # Default to circle if route not found
-            if route not in markers:
-                markers[route] = ax.scatter([], [], color='black', marker=marker, label=route)  # Initialize legend entry
-            ax.scatter(pos, yi, color='black', marker=marker)
-        
-        # Add legend to the right of the plot
-        ax.legend(handles=[markers[route] for route in markers], loc='center left', bbox_to_anchor=(1, 0.5), title='Route Name')
-        
-        # Calculate and display the mean for each group
-        for i, pos in enumerate(np.arange(1, len(unique_x) + 1)):
-            mean = np.nanmean(box_data[i])
-            ax.text(pos, mean, f'{mean:.3f}', ha='left', va='center', fontsize=10, color='black', fontweight='bold')
+            # Overlay scatter plot with different marker shapes based on route_name
+            markers = {}
+            for xi, yi, route in zip(x, y, route_names):
+                pos = np.where(np.array(unique_x) == xi)[0][0] + 1
+                marker = marker_styles.get(route, 'o')  # Default to circle if route not found
+                if route not in markers:
+                    markers[route] = ax.scatter([], [], color='black', marker=marker, label=route)  # Initialize legend entry
+                ax.scatter(pos, yi, color='black', marker=marker)
+            
+            # Add legend to the right of the plot
+            ax.legend(handles=[markers[route] for route in markers], loc='center left', bbox_to_anchor=(1, 0.5), title='Route Name')
+            
+            # Calculate and display the mean for each group
+            for i, pos in enumerate(np.arange(1, len(unique_x) + 1)):
+                mean = np.nanmean(box_data[i])
+                ax.text(pos, mean, f'{mean:.3f}', ha='left', va='center', fontsize=10, color='black', fontweight='bold')
 
-        # Customize the plot
-        ax.set_xticks(np.arange(1, len(unique_x) + 1))
-        ax.set_xticklabels([str(val) for val in unique_x])
-        ax.set_xlabel('Cycle #')
-        ax.set_ylabel(y_variable)
-        ax.set_title(f'{y_variable} vs Cycle #')
-        
-        # Save plot
-        plot_filename = f"{y_variable}.png"
-        fig.savefig(plot_filename, bbox_inches='tight')
-        plt.close(fig)  # Close the figure to free memory
-        cycle_plots[y_variable] = plot_filename
+            # Customize the plot
+            ax.set_xticks(np.arange(1, len(unique_x) + 1))
+            ax.set_xticklabels([str(val) for val in unique_x])
+            ax.set_xlabel('Cycle #')
+            ax.set_ylabel(y_variable)
+            ax.set_title(f'{y_variable} vs Cycle #')
+            
+            # Save plot
+            plot_filename = f"{y_variable}.png"
+            fig.savefig(plot_filename, bbox_inches='tight')
+            plt.close(fig)  # Close the figure to free memory
+            cycle_plots[y_variable] = plot_filename
 
-        print(f"Length of box_data: {len(box_data)}")
-        print(f"Length of positions (unique_x): {len(unique_x)}")
+            print(f"Length of box_data: {len(box_data)}")
+            print(f"Length of positions (unique_x): {len(unique_x)}")
     
     return cycle_plots
+
 
 
 
@@ -1077,6 +1090,10 @@ import panel as pn
 import pandas as pd
 
 def create_interactive_jmp_panel(ec_optics_df):
+    # First check that the entire dataframe is not empty 
+    if ec_optics_df.empty:
+        return pn.pane.Markdown("# No Available Data for Interactive Plotting")
+
     # Define the list of y-values
     y_values = [
         'coulombic_efficiency', 'bleach_final_current', 'bleach_max_current',
@@ -1102,6 +1119,9 @@ def create_interactive_jmp_panel(ec_optics_df):
     # Create a select widget for route selection
     route_values = ['Plot All'] + ec_optics_df['route_name'].unique().tolist()
     route_select = pn.widgets.Select(name='Select Route', options=route_values, value=route_values[0])
+
+    # To avoid ValueErrors, filter to only select from and generate plots for y variables that are not empty in the df
+    y_values = [y for y in y_values if y in ec_optics_df.columns and ec_optics_df[y].notna().sum() > 0]
 
     # Create a dynamic select widget for y-values based on the filtered DataFrame
     y_select = pn.widgets.Select(name='Select Y Variable', options=y_values, value=y_values[0])
@@ -1135,8 +1155,7 @@ def create_interactive_jmp_panel(ec_optics_df):
     panel_layout = pn.Column(route_select, y_select, pn.panel(update_plot))
     return panel_layout
 
-import panel as pn
-import pandas as pd
+
 
 # Dictionary of y-values with corresponding slider ranges
 y_value_ranges = {
@@ -1174,6 +1193,116 @@ y_value_ranges = {
 
 import panel as pn
 import pandas as pd
+
+def create_static_cycling_jmp_panel(df):
+    # Updated code that needs to be put into a separate function 9/25/24
+    # This is the most up to date version
+    y_variables = ['coulombic_efficiency', 'tint_max_current', 'tint_charge_a', 'tint_charge_b',
+                'tint_charge_c', 'tint_max_current_time', 'delta_initial_final_percentage',
+                'delta_max_min_percentage', 'final_percentage', 'initial_percentage',
+                'max_percentage', 'min_percentage', 'tint_ten_time', 'tint_five_time',
+                'a_initial', 'b_initial', 'deltaE_initial', 'deltaE_final',
+                'mesh_width_checkin', 'tint_time_eighty_vlt',
+                'tint_ten_b', 'tint_ten_a']
+    # Remove y variables without data in the dataframe
+    y_variables = [y for y in y_variables if y in ec_optics_df.columns and ec_optics_df[y].notna().sum() > 0]
+    if not df.empty:
+        cycle_plots = plot_boxplot_with_scatter(df, y_variables)
+        # Track variables with None values
+        variables_with_none = [var for var, filename in cycle_plots.items() if filename is None]
+        # Create image panes, skipping None values
+        image_panes = [pn.pane.PNG(filename, width=600, height=400) for filename in cycle_plots.values() if filename is not None]
+        # Display a report if there are variables with None
+        if variables_with_none:
+            print('NO DATA WARNING: Some boxplots have no JMP data')
+            none_report = f"Variables with no data: {', '.join(variables_with_none)}"
+            image_panes.append(pn.pane.Markdown(f"### {none_report}"))
+    else: 
+        print('NO DATA WARNING: No JMP Data for Static Plots')
+        image_panes = [pn.Column('### No JMP Data to Display')]
+
+    # Create a Panel layout to display plots
+    cycle_jmp_layout = pn.GridBox(*image_panes, ncols=2, sizing_mode='stretch_width')
+    
+    return cycle_jmp_layout
+
+# OLD STATIC FUNCTION 9/25/24
+def create_static_jmp_panel(ec_optics_df):
+    y_variables = ['coulombic_efficiency', 'tint_max_current', 'tint_charge_a', 'tint_charge_b',
+                'tint_charge_c', 'tint_max_current_time', 'delta_initial_final_percentage',
+                'delta_max_min_percentage', 'final_percentage', 'initial_percentage',
+                'max_percentage', 'min_percentage', 'tint_ten_time', 'tint_five_time',
+                'a_initial', 'b_initial', 'deltaE_initial', 'deltaE_final',
+                'mesh_width_checkin', 'tint_time_eighty_vlt',
+                'tint_ten_b', 'tint_ten_a']
+    # Remove y variables without data in the dataframe
+    y_variables = [y for y in y_variables if y in ec_optics_df.columns and ec_optics_df[y].notna().sum() > 0]
+    cycle_plots = {}
+
+    # Define marker shapes for each route_name
+    marker_shapes = {
+        'Ambient': 'o',  # Circle
+        'Demo': 's',  # Square
+        'Oven': '^',  # Triangle
+        'Samples': 'D',  # Diamond
+        'Weatherometer': 'x',} # X
+
+    for y_variable in y_variables:
+        x = ec_optics_df['cycle_number'].values
+        x = x.astype(np.int64)
+        y = ec_optics_df[y_variable].values
+        y = y.astype(np.int64)
+        fig, ax = plt.subplots(figsize=(10, 6))
+    
+        # Plot data points with different shapes based on route_name
+        for route_name, marker_shape in marker_shapes.items():
+            mask = ec_optics_df['route_name'] == route_name
+            ax.scatter(x[mask], y[mask], color='black', marker=marker_shape, label=route_name, s=300) 
+        
+        ax.set_xticks(np.arange(0, 200, 100))
+        ax.set_xlim(-50, 200)
+        
+        # Add labels
+        ax.set_xlabel('Cycle #')
+        ax.set_ylabel(y_variable)
+        ax.set_title(f'{y_variable} vs Cycle #')
+        ax.legend(title='Route Name')
+
+        if np.issubdtype(y.dtype, np.number) and np.any(np.isfinite(y)):
+            # Adjust y-axis limits
+            y_min, y_max = y.min(), y.max()
+            y_range = y_max - y_min
+            ax.set_ylim(y_min - 0.15 * y_range, y_max + 0.15 * y_range)
+
+        # Create lists of y-values grouped by x-values
+        box_data = []
+        unique_x = sorted(set(x))
+        for val in unique_x:
+            box_data.append([y[i] for i in range(len(x)) if x[i] == val])
+    
+        # Boxplot with light grey fill
+        boxprops = dict(facecolor='lightgrey', color='black')  # Light grey fill
+        whiskerprops = dict(color='black')
+        capprops = dict(color='black')
+
+        ax.boxplot(box_data, positions=range(1, len(unique_x) + 1), widths=0.5, patch_artist=True, 
+                labels=[str(val) for val in unique_x], boxprops=boxprops, whiskerprops=whiskerprops, capprops=capprops)
+
+        if not ec_optics_df.empty:
+            avg_y = [np.mean([y[i] for i in range(len(x)) if x[i] == val]) for val in unique_x]
+            table_data = list(zip(unique_x, avg_y))
+            table = plt.table(cellText=table_data, colLabels=['Cycle #', 'Average'], cellLoc='center', loc='bottom', bbox=[0.1, -0.3, 0.8, 0.2])
+
+        plot_filename = f"{y_variable}.png"
+        fig.savefig(plot_filename, bbox_inches='tight')
+        plt.close(fig)  # Close the figure to free memory
+
+        cycle_plots[y_variable] = plot_filename
+
+    image_panes = [pn.pane.PNG(filename, width=600, height=600) for filename in cycle_plots.values()]
+    cycle_jmp_layout = pn.GridBox(*image_panes, ncols=2, sizing_mode='stretch_width')
+
+    return cycle_jmp_layout
 
 
 
