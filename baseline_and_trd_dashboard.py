@@ -804,36 +804,59 @@ def main():
     print(all_baselines_df)
     all_baselines_list = reversed(all_baselines_df['baseline_version'].values)
     print(all_baselines_df.columns)
+    all_trds_df = get_trds(conn, cursor)
 
-    # category = 'OBL3-Contender2'
-    selected_baseline_name, selected_devices = create_dynamic_baseline_dialog(all_baselines_df, conn, cursor)
-    print(f"Selected Baseline Version: {selected_baseline_name}")
+
+    # selected_baseline_name, selected_devices = create_dynamic_baseline_dialog(all_baselines_df, conn, cursor)
+    selected_name, selected_devices, experiment_type = create_dynamic_baseline_and_trd_dialog(all_baselines_df, all_trds_df, conn, cursor)
+    print(f"Selected Experiment Version: {selected_name}")
     print(f"Selected Devices: {selected_devices}")
 
-    search_string = selected_baseline_name
+    search_string = selected_name
 
     if search_string and selected_devices:
+        print(experiment_type)
         print(f"Search String Entered: {search_string}")
-        # Get notes
-        sub_df = all_baselines_df[all_baselines_df['baseline_version'] == search_string]
-        notes_string = sub_df['notes'].values[0]
-        # Get ID and Devices
-        matching_ids = search_baseline_name(all_baselines_df, search_string)
-        baseline_id = matching_ids[0]
-        baseline_devices = get_baseline_devices(conn, cursor, baseline_id)
-        # Get list of IDs for the specified device names
-        device_id_list = baseline_devices.loc[baseline_devices['device_name'].isin(selected_devices), 'id'].tolist()
-        print('IDs corresponding to selected devices: ', device_id_list)
-        device_list = selected_devices
-        print('device list: ', device_id_list)
+        if experiment_type == 'Baseline':
+            print('Identified as Basline')
+            # Get notes
+            sub_df = all_baselines_df[all_baselines_df['baseline_version'] == search_string]
+            notes_string = sub_df['notes'].values[0]
+            # Get ID and Devices
+            matching_ids = search_baseline_name(all_baselines_df, search_string)
+            baseline_id = matching_ids[0]
+            baseline_devices = get_baseline_devices(conn, cursor, baseline_id)
+            # Get list of IDs for the specified device names
+            device_id_list = baseline_devices.loc[baseline_devices['device_name'].isin(selected_devices), 'id'].tolist()
+            print('IDs corresponding to selected devices: ', device_id_list)
+            device_list = selected_devices
+            print('device list: ', device_id_list)
+            baseline_eccheckins = get_trd_eccheckins(conn, cursor, device_id_list) # function works for either
+            path_list = baseline_eccheckins['server_path'].values 
+
+        elif experiment_type == 'TRD':
+            print('Identified as TRD')
+                    # Get notes
+            sub_df = all_trds_df[all_trds_df['trd_name'] == search_string]
+            notes_string = sub_df['notes'].values[0]
+            # Get ID and Devices
+            matching_ids = search_trd_name(all_trds_df, search_string)
+            trd_id = matching_ids[0]
+            trd_devices = get_trd_devices(conn, cursor, trd_id)
+            # Get list of IDs for the specified device names
+            device_id_list = trd_devices.loc[trd_devices['device_name'].isin(selected_devices), 'id'].tolist()
+            print('IDs corresponding to selected devices: ', device_id_list)
+            device_list = selected_devices
+            print('device list: ', device_id_list)
+            # Get paths
+            trd_eccheckins = get_trd_eccheckins(conn, cursor, device_id_list)
+            path_list = trd_eccheckins['server_path'].values 
 
         current_directory = os.getcwd()
         # cv_image_path = os.path.join(current_directory, '/figures/no_initial_photo_available.jpg')
         # no_data_image_path = os.path.join(current_directory, '/figures/no_data.png')
 
-        baseline_eccheckins = get_trd_eccheckins(conn, cursor, device_id_list)
-        path_list = baseline_eccheckins['server_path'].values 
-
+        
         path_list = [item for item in path_list if item is not None]
         print('old ALL path list: ', path_list)
         local_all_paths = []
@@ -866,13 +889,34 @@ def main():
         '#### PAGE 5: EMPTIES ####### '
 
         '#### PAGE 1: GET DATA ####### '
+
         ' ############################# CALLING ALL HTML FUNCTIONS FOR DEVICE OVERVIEW TAB ################### '
         # adding route_name to baseline devices dataframe
         routes_df = get_routes(conn, cursor)
-        baseline_devices = get_baseline_devices(conn, cursor, baseline_id)
-        baseline_devices = pd.merge(baseline_devices, routes_df, on='route_id')
-        print('FINAL TABLE OF DEVICE DATA', baseline_devices.columns)
-        table_html = all_devices_table(baseline_devices)
+        if experiment_type == 'Baseline':
+            baseline_devices = get_baseline_devices(conn, cursor, baseline_id)
+            baseline_devices['route_id'] = [0 if x is None else x for x in baseline_devices['route_id'].values]
+            routes_df = pd.concat([new_row, routes_df], ignore_index=True)
+            baseline_devices = pd.merge(baseline_devices, routes_df, on='route_id')
+            print('FINAL TABLE OF DEVICE DATA', baseline_devices.columns)
+            table_html = all_devices_table(baseline_devices)
+            selected_devices = baseline_devices
+
+        elif experiment_type == 'TRD':
+            trd_devices = get_trd_devices(conn, cursor, trd_id)
+            print('trddf',trd_devices)
+            print('routedf',routes_df)
+            print(trd_devices['route_id'].values)
+            # Handle unspecified case
+            trd_devices['route_id'] = [0 if x is None else x for x in trd_devices['route_id'].values]
+            new_row = pd.DataFrame({'route_id': [0], 'route_name': ['Unspecified']})
+            routes_df = pd.concat([new_row, routes_df], ignore_index=True)
+            # Continue merging
+            trd_devices = pd.merge(trd_devices, routes_df, on='route_id')
+            print('FINAL TABLE OF DEVICE DATA', trd_devices.columns)
+            table_html = all_devices_table(trd_devices)
+            selected_devices = trd_devices
+
         # Bullet list of gathered data
         warmups = local_warmup_paths
         o_checks = optics_folder_paths
@@ -895,9 +939,9 @@ def main():
             print('Device Parent Directories Found:', unique_dirs)
             print('Device Arbin paths found:', arbin_paths)
 
-        baseline_warmups_df = get_baseline_warmups(conn, cursor, device_id_list) 
-        if not baseline_warmups_df.empty: 
-            warmup_path_list = baseline_warmups_df['server_path'].values 
+        warmups_df = get_baseline_warmups(conn, cursor, device_id_list) # works for either
+        if not warmups_df.empty: 
+            warmup_path_list = warmups_df['server_path'].values 
             warmup_path_list = [item for item in warmup_path_list if item is not None]
             print('old warmup path list: ', warmup_path_list)
             local_warmup_paths = get_local_paths(warmup_path_list)
@@ -1048,7 +1092,7 @@ def main():
     import matplotlib.pyplot as plt
 
 
-    plots = create_static_noncycling_plot_dictionary_from_df(checkin_df_dict, baseline_devices)
+    plots = create_static_noncycling_plot_dictionary_from_df(checkin_df_dict, selected_devices)
 
     #print('ALL PLOTS', plots)
 
@@ -1071,12 +1115,11 @@ def main():
 
     # Non-interactive plots
     print('cycling dataframe columns:', ec_optics_df.columns)
-    baseline_devices = baseline_devices.rename(columns={'id': 'device_id'})
-    #print('renamed baseline df', baseline_devices)
+    selected_devices = selected_devices.rename(columns={'id': 'device_id'})
 
-    baseline_devices['device_id'] = baseline_devices['device_id'].astype(int)
+    selected_devices['device_id'] = selected_devices['device_id'].astype(int)
     ec_optics_df['device_id'] = ec_optics_df['device_id'].astype(int)
-    ec_optics_df_with_route = pd.merge(baseline_devices, ec_optics_df, on='device_id')
+    ec_optics_df_with_route = pd.merge(selected_devices, ec_optics_df, on='device_id')
     ec_optics_df = ec_optics_df_with_route
 
     ec_optics_df = ec_optics_df.fillna(np.nan)
@@ -1103,8 +1146,8 @@ def main():
     'coulombic_efficiency', 'initial_percentage'
     checkin_df_dict # dataframe
     for name, df in checkin_df_dict.items():
-        baseline_devices = baseline_devices.rename(columns={'id': 'device_id'})
-        df_with_route = pd.merge(baseline_devices, df, on='device_id')
+        selected_devices = selected_devices.rename(columns={'id': 'device_id'})
+        df_with_route = pd.merge(selected_devices, df, on='device_id')
         df = df_with_route
         if name == 'df_hazecheckin':
             x = df['check_in_age']

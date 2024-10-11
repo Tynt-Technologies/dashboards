@@ -1205,7 +1205,7 @@ def create_static_cycling_jmp_panel(df):
                 'mesh_width_checkin', 'tint_time_eighty_vlt',
                 'tint_ten_b', 'tint_ten_a']
     # Remove y variables without data in the dataframe
-    y_variables = [y for y in y_variables if y in ec_optics_df.columns and ec_optics_df[y].notna().sum() > 0]
+    y_variables = [y for y in y_variables if y in df.columns and df[y].notna().sum() > 0]
     if not df.empty:
         cycle_plots = plot_boxplot_with_scatter(df, y_variables)
         # Track variables with None values
@@ -1223,8 +1223,308 @@ def create_static_cycling_jmp_panel(df):
 
     # Create a Panel layout to display plots
     cycle_jmp_layout = pn.GridBox(*image_panes, ncols=2, sizing_mode='stretch_width')
-    
+
     return cycle_jmp_layout
+
+# CURRENT STATIC NON-CYCLING JMP PLOT FUNCTION
+def create_static_noncycling_plot_dictionary_from_df(checkin_df_dict, baseline_devices):
+    plots = {}
+    marker_styles = {
+    'Ambient': 'o',  # Circle
+    'Demo': 's',  # Square
+    'Oven': '^',  # Triangle
+    'Samples': 'D',  # Diamond
+    'Weatherometer': 'x',} # X
+
+    for name, df in checkin_df_dict.items():
+        #print(name, df)
+
+        #print(baseline_devices.columns)
+        #print(df.columns)
+        baseline_devices = baseline_devices.rename(columns={'id': 'device_id'})
+        #print(baseline_devices.columns)
+        #print(df.columns)
+        df_with_route = pd.merge(baseline_devices, df, on='device_id')
+        #print('route df', df_with_route)
+        df = df_with_route
+        
+        if name == 'df_bubbleareacheckin':
+            x = df['check_in_age']
+            y = df['check_in_bubblearea']
+            age_units = df['check_in_age_unit'].astype(str)  # Convert to string if needed
+            route_names = df['route_name']  # Assuming this is the column with route names
+
+            # Create the plot
+            fig, ax = plt.subplots()
+
+            # Loop over unique age units
+            unique_units = age_units.unique()
+            for unit in unique_units:
+                unit_mask = age_units == unit
+                for route in route_names[unit_mask].unique():
+                    route_mask = route_names == route
+                    combined_mask = unit_mask & route_mask
+                    ax.scatter(
+                        x[combined_mask], 
+                        y[combined_mask], 
+                        label=f"{unit} - {route}",
+                        marker=marker_styles.get(route, 'o')  # Default to 'o' if route not in dictionary
+                    )
+            
+            # Add labels and legend
+            ax.set_xlabel('Check In Age')
+            ax.set_ylabel('Bubble Area (%)')
+            ax.legend(title='Age Unit and Route Name')
+            ax.set_title('Device Bubble Area Check-In')
+
+            if not df.empty:
+                # Adjust y-axis limits
+                y_min, y_max = y.min(), y.max()
+                y_range = y_max - y_min
+                print(y_range)
+                ax.set_ylim(y_min - 0.15 * y_range, y_max + 0.15 * y_range)
+
+                unique_x = sorted(set(x))
+                avg_y = [np.mean([y[i] for i in range(len(x)) if x[i] == val]) for val in unique_x]
+                table_data = list(zip(unique_x, avg_y))
+
+                if not df.empty:
+                    table = plt.table(cellText=table_data, colLabels=['Cycle #', 'Average'], cellLoc='center', loc='bottom', bbox=[0.1, -0.3, 0.8, 0.2])
+                
+            # Save the figure
+            plot_filename = f"{name}.png"
+            fig.savefig(plot_filename, bbox_inches='tight')
+            plt.close(fig)  # Close the figure to free memory
+
+            plots[name] = plot_filename  # Save filename to dictionary
+
+        elif name == 'df_devicethicknesscheckin':
+            x = df['check_in_age']
+            y = df['check_in_bottom_thickness_cm']
+            age_units = df['check_in_age_unit'].astype(str)  # Convert to string if needed
+            route_names = df['route_name'] 
+
+            # Create the plot
+            fig, ax = plt.subplots()
+                # Loop over unique age units
+            unique_units = age_units.unique()
+            for unit in unique_units:
+                unit_mask = age_units == unit
+                for route in route_names[unit_mask].unique():
+                    route_mask = route_names == route
+                    combined_mask = unit_mask & route_mask
+                    ax.scatter(
+                        x[combined_mask], 
+                        y[combined_mask], 
+                        label=f"{unit} - {route}",
+                        marker=marker_styles.get(route, 'o')  # Default to 'o' if route not in dictionary
+                    )
+
+            # Add labels and legend
+            ax.set_xlabel('Check In Age')
+            ax.set_ylabel('Bottom Thickness (cm)')
+            ax.legend(title='Age Unit and Route Name')
+            ax.set_title('Device Thickness Check-In')
+
+            if not df.empty:
+                # Adjust y-axis limits
+                y_min, y_max = y.min(), y.max()
+                y_range = y_max - y_min
+                print(y_range)
+                ax.set_ylim(y_min - 0.15 * y_range, y_max + 0.15 * y_range)
+
+                unique_x = sorted(set(x))
+                avg_y = [np.mean([y[i] for i in range(len(x)) if x[i] == val]) for val in unique_x]
+                table_data = list(zip(unique_x, avg_y))
+                table = plt.table(cellText=table_data, colLabels=['Cycle #', 'Average'], cellLoc='center', loc='bottom', bbox=[0.1, -0.3, 0.8, 0.2])
+
+                # Save the figure
+                plot_filename = f"{name}.png"
+                fig.savefig(plot_filename, bbox_inches='tight')
+                plt.close(fig)  # Close the figure to free memory
+
+                plots[name] = plot_filename  # Save filename to dictionary
+
+        elif name == 'df_hazecheckin':
+            x = df['check_in_age']
+            y = df['check_in_haze']
+            age_units = df['check_in_age_unit'].astype(str)  # Convert to string if needed
+            route_names = df['route_name']  # Assuming this is the column with route names
+
+            # Create the plot
+            fig, ax = plt.subplots()
+
+            unique_units = age_units.unique()
+            for unit in unique_units:
+                unit_mask = age_units == unit
+                for route in route_names[unit_mask].unique():
+                    route_mask = route_names == route
+                    combined_mask = unit_mask & route_mask
+                    ax.scatter(
+                        x[combined_mask],
+                        y[combined_mask],
+                        label=f"{unit} - {route}",
+                        marker=marker_styles.get(route, 'o')  # Default to 'o' if route not in dictionary
+                    )
+            
+            # Add labels and legend
+            ax.set_xlabel('Check In Age')
+            ax.set_ylabel('Haze (%)')
+            ax.legend(title='Age Unit and Route Name')
+            ax.set_title('Haze Check-In')
+
+            if not df.empty:
+                # Adjust y-axis limits
+                y_min, y_max = y.min(), y.max()
+                y_range = y_max - y_min
+                ax.set_ylim(y_min - 0.15 * y_range, y_max + 0.15 * y_range)
+
+                unique_x = sorted(set(x))
+                avg_y = [np.mean([y[i] for i in range(len(x)) if x[i] == val]) for val in unique_x]
+                table_data = list(zip(unique_x, avg_y))
+                table = plt.table(cellText=table_data, colLabels=['Cycle #', 'Average'], cellLoc='center', loc='bottom', bbox=[0.1, -0.3, 0.8, 0.2])
+            
+            # Save the figure
+            plot_filename = f"{name}.png"
+            fig.savefig(plot_filename, bbox_inches='tight')
+            plt.close(fig)  # Close the figure to free memory
+
+            plots[name] = plot_filename  # Save filename to dictionary
+
+        elif name == 'df_weightcheckin':
+            x = df['check_in_age']
+            y = df['check_in_weight_g']
+            age_units = df['check_in_age_unit'].astype(str)  # Convert to string if needed
+            route_names = df['route_name']  # Assuming this is the column with route names
+
+            # Create the plot
+            fig, ax = plt.subplots()
+
+            unique_units = age_units.unique()
+            for unit in unique_units:
+                unit_mask = age_units == unit
+                for route in route_names[unit_mask].unique():
+                    route_mask = route_names == route
+                    combined_mask = unit_mask & route_mask
+                    ax.scatter(
+                        x[combined_mask],
+                        y[combined_mask],
+                        label=f"{unit} - {route}",
+                        marker=marker_styles.get(route, 'o')  # Default to 'o' if route not in dictionary
+                    )
+
+            # Add labels and legend
+            ax.set_xlabel('Check In Age')
+            ax.set_ylabel('Weight (g)')
+            ax.legend(title='Age Unit and Route Name')
+            ax.set_title('Device Weight Check-In')
+
+            if not df.empty:
+                # Adjust y-axis limits
+                y_min, y_max = y.min(), y.max()
+                y_range = y_max - y_min
+                ax.set_ylim(y_min - 0.15 * y_range, y_max + 0.15 * y_range)
+
+                unique_x = sorted(set(x))
+                avg_y = [np.mean([y[i] for i in range(len(x)) if x[i] == val]) for val in unique_x]
+                table_data = list(zip(unique_x, avg_y))
+                table = plt.table(cellText=table_data, colLabels=['Cycle #', 'Average'], cellLoc='center', loc='bottom', bbox=[0.1, -0.3, 0.8, 0.2])
+
+            # Save the figure
+            plot_filename = f"{name}.png"
+            fig.savefig(plot_filename, bbox_inches='tight')
+            plt.close(fig)  # Close the figure to free memory
+
+            plots[name] = plot_filename  # Save filename to dictionary
+
+        elif name == 'df_meshwidthcheckin':
+            x = df['check_in_age']
+            y = df['check_in_width_um']
+            age_units = df['check_in_age_unit'].astype(str)  # Convert to string if needed
+            route_names = df['route_name']  # Assuming this is the column with route names
+
+            # Create the plot
+            fig, ax = plt.subplots()
+
+            unique_units = age_units.unique()
+            for unit in unique_units:
+                unit_mask = age_units == unit
+                for route in route_names[unit_mask].unique():
+                    route_mask = route_names == route
+                    combined_mask = unit_mask & route_mask
+                    ax.scatter(
+                        x[combined_mask],
+                        y[combined_mask],
+                        label=f"{unit} - {route}",
+                        marker=marker_styles.get(route, 'o')  # Default to 'o' if route not in dictionary
+                    )
+
+            # Add labels and legend
+            ax.set_xlabel('Check In Age')
+            ax.set_ylabel('Mesh Width (um)')
+            ax.legend(title='Age Unit and Route Name')
+            ax.set_title('Mesh Width Check-In')
+
+            if not df.empty:
+                # Adjust y-axis limits
+                y_min, y_max = y.min(), y.max()
+                y_range = y_max - y_min
+                ax.set_ylim(y_min - 0.15 * y_range, y_max + 0.15 * y_range)
+
+                unique_x = sorted(set(x))
+                avg_y = [np.mean([y[i] for i in range(len(x)) if x[i] == val]) for val in unique_x]
+                table_data = list(zip(unique_x, avg_y))
+                table = plt.table(cellText=table_data, colLabels=['Cycle #', 'Average'], cellLoc='center', loc='bottom', bbox=[0.1, -0.3, 0.8, 0.2])
+
+            # Save the figure
+            plot_filename = f"{name}.png"
+            fig.savefig(plot_filename, bbox_inches='tight')
+            plt.close(fig)  # Close the figure to free memory
+
+            plots[name] = plot_filename  # Save filename to dictionary
+
+        elif name == 'df_internalresistancecheckin':
+            x = df['check_in_age']
+            y = df['check_in_internal_resistance']
+            age_units = df['check_in_age_unit'].astype(str)  # Convert to string if needed
+            route_names = df['route_name']  # Assuming this is the column with route names
+
+            # Create the plot
+            fig, ax = plt.subplots()
+
+            unique_units = age_units.unique()
+            for unit in unique_units:
+                unit_mask = age_units == unit
+                for route in route_names[unit_mask].unique():
+                    route_mask = route_names == route
+                    combined_mask = unit_mask & route_mask
+                    ax.scatter(
+                        x[combined_mask],
+                        y[combined_mask],
+                        label=f"{unit} - {route}",
+                        marker=marker_styles.get(route, 'o')  # Default to 'o' if route not in dictionary
+                    )
+
+            # Add labels and legend
+            ax.set_xlabel('Check In Age')
+            ax.set_ylabel('Internal Resistance (Ohm)')
+            ax.legend(title='Age Unit and Route Name')
+            ax.set_title('Internal Resistance Check-In')
+
+            if not df.empty:
+                # Adjust y-axis limits
+                y_min, y_max = y.min(), y.max()
+                y_range = y_max - y_min
+                ax.set_ylim(y_min - 0.15 * y_range, y_max + 0.15 * y_range)
+
+            # Save the figure
+            plot_filename = f"{name}.png"
+            fig.savefig(plot_filename, bbox_inches='tight')
+            plt.close(fig)  # Close the figure to free memory
+
+            plots[name] = plot_filename  # Save filename to dictionary
+    
+    return plots
 
 # OLD STATIC FUNCTION 9/25/24
 def create_static_jmp_panel(ec_optics_df):
@@ -1657,7 +1957,7 @@ def update_plot(df, device_id, y_string):
 def create_single_panel_plot(df):
     if not df.empty: # if not empty
         device_ids = df['device_id'].unique()
-        y_strings = ['coulombic_efficiency', 'bleach_internal_resistance', 'tint_internal_resistance',
+        y_strings = ['coulombic_efficiency', 'bleach_internal_resistance', 'tint_internal_resistance', 'delta_tint_bleach_internal_resistance',
                     'bleach_charge', 'max_tint_current', 'tint_charge', 'total_bleach_time', 'total_tint_time']
         
         device_select = pn.widgets.Select(name='Device ID', options=list(device_ids))
@@ -1812,3 +2112,592 @@ def get_all_raw_data(local_paths):
             print('\n Error: Unable to locate EC file on drive')
     return final_df
 
+
+import seaborn as sns
+import matplotlib.pyplot as plt
+import pandas as pd
+import panel as pn
+
+def correlation_heatmap_old(df):
+    data = {
+        'A': [1, 2, 3, 4, 5],
+        'B': [5, 6, 7, 8, 9],
+        'C': [9, 10, 11, 12, 13],
+        'D': [1, 3, 5, 7, 9]
+    }
+    df = pd.DataFrame(data)
+    correlation_matrix = df.corr()
+
+    # Create the heatmap using seaborn
+    fig, ax = plt.subplots(figsize=(8, 6))
+    sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', fmt=".2f", linewidths=0.5, ax=ax)
+
+    # Add a title
+    ax.set_title('Correlation Heatmap')
+
+    # Return the Matplotlib figure embedded in Panel
+    return pn.pane.Matplotlib(fig, tight=True)
+
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+import panel as pn
+
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+import numpy as np
+import panel as pn
+
+# Ensure Panel extension for Matplotlib integration
+pn.extension('matplotlib')
+
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+import numpy as np
+import panel as pn
+
+# Ensure Panel extension for Matplotlib integration
+pn.extension('matplotlib')
+
+
+
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+import panel as pn
+import numpy as np
+
+pn.extension('matplotlib')
+
+def correlation_heatmap(df):
+    # Define the variables for correlation and slope calculation
+    variables = [
+        'bleach_final_current', 'bleach_max_current', 'tint_final_current', 'tint_max_current',
+        'tint_charge_a', 'tint_charge_b', 'tint_charge_c', 'tint_charge_d', 'charge_in', 
+        'charge_out', 'tint_max_current_time', 'bleach_ten_time', 'bleach_five_time', 
+        'bleach_one_time', 'bleach_point_one_time', 'delta_initial_final_percentage', 
+        'delta_max_min_percentage', 'final_percentage', 'initial_percentage', 
+        'max_percentage', 'min_percentage', 'tint_ten_time', 'tint_five_time', 
+        'tint_one_time', 'tint_point_one_time', 'tint_ten_a', 'tint_five_a', 
+        'tint_one_a', 'tint_point_one_a', 'a_final', 'a_initial', 'a_max', 'a_min', 
+        'tint_ten_b', 'tint_five_b', 'tint_one_b', 'tint_point_one_b', 'b_final', 
+        'b_initial', 'b_max', 'b_min', 'deltaE_initial', 'deltaE_final', 
+        'tint_five_deltaE', 'deltaE_min', 'tint_one_deltaE', 'tint_point_one_deltaE', 
+        'tint_ten_deltaE', 'tint_time_eighty_vlt'
+    ]
+
+    # Prepare lists to hold slopes and last cycle absolute values
+    slopes = {var: [] for var in variables}
+    last_cycle_abs = {var: [] for var in variables}
+
+    # Iterate over each device_id
+    for device_id in df['device_id'].unique():
+        print(f"\nProcessing device: {device_id}")
+
+        # Filter the DataFrame for this device_id
+        device_df = df[df['device_id'] == device_id].sort_values('cycle_number')
+
+        # Get the unique cycle numbers and check if there are at least 3
+        unique_cycles = device_df['cycle_number'].unique()
+        if len(unique_cycles) < 3:
+            print(f"Not enough data for device {device_id}. Skipping...")
+            continue
+
+        # Select the first two and the last cycle
+        first_cycle = unique_cycles[0]
+        second_cycle = unique_cycles[1]
+        last_cycle = unique_cycles[-1]
+
+        # Get the data for the selected cycles
+        first_cycle_data = device_df[device_df['cycle_number'] == first_cycle]
+        second_cycle_data = device_df[device_df['cycle_number'] == second_cycle]
+        last_cycle_data = device_df[device_df['cycle_number'] == last_cycle]
+
+        # Calculate the slope between the first and second cycle for each variable
+        for var in variables:
+            if var in device_df.columns:
+                # Calculate the slope between the first and second cycle
+                if not first_cycle_data[var].empty and not second_cycle_data[var].empty:
+                    slope = (second_cycle_data[var].values[0] - first_cycle_data[var].values[0]) / (second_cycle - first_cycle)
+                    slopes[var].append(slope)
+                
+                # Get the absolute value for the last cycle
+                if not last_cycle_data[var].empty:
+                    last_cycle_abs_value = abs(last_cycle_data[var].values[0])
+                    last_cycle_abs[var].append(last_cycle_abs_value)
+
+    # Convert the lists of slopes and last cycle absolute values to DataFrames
+    slope_df = pd.DataFrame(slopes)
+    last_cycle_abs_df = pd.DataFrame(last_cycle_abs)
+
+    # Print the slope values for all devices
+    print("\nSlope values across all devices:")
+    print(slope_df)
+
+    # Print the absolute values for the last cycle across all devices
+    print("\nLast cycle absolute values across all devices:")
+    print(last_cycle_abs_df)
+
+    # Create a correlation DataFrame
+    correlation_results = {}
+    
+    for var in variables:
+        if var in slope_df.columns and var in last_cycle_abs_df.columns:
+            # Calculate correlation for the current variable
+            correlation = slope_df[var].corr(last_cycle_abs_df[var])
+            correlation_results[var] = correlation
+
+    # Create a DataFrame for correlations
+    correlation_df = pd.DataFrame(correlation_results, index=['Correlation']).T
+
+    # Print the correlation matrix
+    print("\nCorrelation matrix:")
+    print(correlation_df)
+
+    # Create the heatmap
+    fig, ax = plt.subplots(figsize=(12, 8))
+    sns.heatmap(correlation_df, annot=True, cmap='coolwarm', fmt=".2f", linewidths=0.5, ax=ax)
+
+    # Add a title to the heatmap
+    ax.set_title(f'Correlation Heatmap: Slope vs Last Cycle Absolute Values')
+
+    # Return the Matplotlib figure embedded in Panel
+    return pn.pane.Matplotlib(fig, tight=True)
+
+# Example usage:
+# correlation_heatmap(df)
+
+
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+import panel as pn
+
+pn.extension()
+
+
+
+
+def correlation_heatmap_with_slope_old(df):
+    # Define the variables for correlation and slope calculation
+    variables = [
+        #'bleach_max_current', 'tint_final_current', 'tint_max_current',
+        'tint_charge_a', 'tint_charge_b', 'tint_charge_c', 'tint_charge_d', 'charge_in', 
+        'charge_out', 'tint_max_current_time', 'bleach_ten_time', 'bleach_five_time', 
+        'delta_max_min_percentage', 'final_percentage', 'initial_percentage', 
+        'max_percentage', 'min_percentage', 'tint_ten_time', 'tint_five_time', 
+        'tint_one_time', 'tint_point_one_time', 'tint_ten_a', 
+        'a_initial', 'tint_ten_b', 'b_initial', 'tint_time_eighty_vlt'
+    ]
+
+    # Collecting device, route, and cycle information
+    devices_used = []
+    routes_used = []  # If there is a column for route in the DataFrame, add to this
+    cycles_used = []
+
+    # Make a copy of the dataframe to avoid modifying the original
+    df_copy = df.copy()
+
+    # Iterate over each device_id
+    for device_id in df['device_id'].unique():
+        print(f"\nProcessing device: {device_id}")
+        devices_used.append(device_id)
+
+        # Filter the DataFrame for this device_id
+        device_df = df[df['device_id'] == device_id].sort_values('cycle_number')
+
+        # Get the unique cycle numbers and check if there are at least 3
+        unique_cycles = device_df['cycle_number'].unique()
+        print('Unique cycles', unique_cycles)
+        if len(unique_cycles) < 3:
+            print(f"Not enough data for device {device_id}. Skipping...")
+            continue
+
+        # Select the first two and the last cycle
+        first_cycle = unique_cycles[0]
+        second_cycle = unique_cycles[1]
+        last_cycle = unique_cycles[-1]
+
+        cycles_used.append((first_cycle, second_cycle, last_cycle))
+
+        # Get the data for the selected cycles
+        first_cycle_data = device_df[device_df['cycle_number'] == first_cycle]
+        second_cycle_data = device_df[device_df['cycle_number'] == second_cycle]
+        last_cycle_data = device_df[device_df['cycle_number'] == last_cycle]
+
+        # Calculate the slope between the first and second cycle for each variable
+        for var in variables:
+            if var in device_df.columns:
+                # Calculate the slope between the first and second cycle
+                if not first_cycle_data[var].empty and not second_cycle_data[var].empty:
+                    slope = (second_cycle_data[var].values[0] - first_cycle_data[var].values[0]) / (second_cycle - first_cycle)
+
+                    # Add the slope value to the dataframe for the last cycle
+                    df_copy.loc[(df_copy['device_id'] == device_id) & (df_copy['cycle_number'] == last_cycle), f'{var}_slope'] = slope
+
+    # Filter the DataFrame to keep only the last cycle data
+    last_cycle_df = df_copy.groupby('device_id').apply(lambda group: group[group['cycle_number'] == group['cycle_number'].max()])
+
+    # Prepare data for correlation matrix
+    columns_to_correlate = [f'{var}_slope' for var in variables if f'{var}_slope' in last_cycle_df.columns]
+    columns_to_correlate += [var for var in variables if var in last_cycle_df.columns]
+
+    # Calculate the correlation matrix
+    correlation_matrix = last_cycle_df[columns_to_correlate].corr()
+
+    # Filter the correlation matrix based on selected variables
+    x_variables = [f'{var}_slope' for var in variables]
+    y_variables = [
+        'delta_max_min_percentage', 'final_percentage', 'initial_percentage', 
+        'max_percentage', 'min_percentage', 'tint_ten_time', 'tint_five_time', 
+        'tint_one_time',  'tint_ten_a', 
+        'a_initial', 'tint_ten_b', 'b_initial', 'tint_time_eighty_vlt']
+    correlation_matrix = correlation_matrix.loc[y_variables, x_variables]
+    
+    # Find the top 5 strongest correlations
+    strongest_correlations = correlation_matrix.unstack().abs().sort_values(ascending=False)
+    strongest_correlations = strongest_correlations[~strongest_correlations.index.duplicated(keep='first')].head(5)
+
+    print("\nTop 5 Strongest Correlations:")
+    for (row_var, col_var), corr_value in strongest_correlations.items():
+        print(f"Correlation between {row_var} and {col_var}: {corr_value:.4f}")
+    
+    # Collecting device, route, and cycle information for the summary
+    summary_string = f"Devices used: {', '.join(map(str, devices_used))}\n"
+    summary_string += f"Cycles used (First, Second, Last): {cycles_used}\n"
+    
+    # Print the correlation matrix
+    print("\nCorrelation Matrix:")
+    print(correlation_matrix)
+
+    # Extract raw data for top 5 strongest correlations
+    raw_data_tables = []
+    for (row_var, col_var), corr_value in strongest_correlations.items():
+        # Extract relevant data for row_var and col_var
+        if row_var in last_cycle_df.columns and col_var in last_cycle_df.columns:
+            raw_data = last_cycle_df[[row_var, col_var]]
+            raw_data_table = pn.pane.DataFrame(raw_data, name=f"Raw Data for {row_var} and {col_var} (Correlation: {corr_value:.4f})")
+            raw_data_tables.append(raw_data_table)
+    
+    # Create the heatmap
+    fig, ax = plt.subplots(figsize=(12, 8))
+    mask = np.triu(np.ones_like(correlation_matrix, dtype=bool))
+    #mask |= np.eye(correlation_matrix.shape[0], dtype=bool)  # Mask diagonal values
+
+    sns.heatmap(correlation_matrix, mask=mask, annot=False, cmap='coolwarm', fmt=".2f", linewidths=0.5, ax=ax, square=True)
+    plt.xticks(rotation=45, ha='right')
+    plt.yticks(rotation=0, ha='right', fontsize=5)
+    # Add a title to the heatmap
+    ax.set_title(f'Correlation Heatmap: Slope vs Last Cycle Absolute Values')
+
+    # Return the Matplotlib figure, summary string, and the raw data tables
+    return pn.Column(pn.pane.Matplotlib(fig, tight=True), summary_string, *raw_data_tables)
+
+# Example usage:
+# layout = correlation_heatmap_with_slope(df)
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import panel as pn
+
+def correlation_heatmap_with_slope(df):
+    # Define the variables for correlation and slope calculation
+    variables = [
+        #'bleach_max_current', 'tint_final_current', 'tint_max_current',
+        'tint_charge_a', 'tint_charge_b', 'tint_charge_c', 'tint_charge_d', 'charge_in', 
+        'charge_out', 'tint_max_current_time', 'bleach_ten_time', 'bleach_five_time', 
+        'delta_max_min_percentage', 'final_percentage', 'initial_percentage', 
+        'max_percentage', 'min_percentage', 'tint_ten_time', 'tint_five_time', 
+        'tint_one_time', 'tint_point_one_time', 'tint_ten_a', 
+        'a_initial', 'tint_ten_b', 'b_initial', 'tint_time_eighty_vlt'
+    ]
+
+    devices_used = []
+    cycles_used = []
+
+    df_copy = df.copy()
+
+    for device_id in df['device_id'].unique():
+        
+
+        # Filter the DataFrame for this device_id
+        device_df = df[df['device_id'] == device_id].sort_values('cycle_number')
+
+        unique_cycles = device_df['cycle_number'].unique()
+        if len(unique_cycles) < 3:
+            continue
+        devices_used.append(device_id)
+
+        # Select the first two and the last cycle
+        first_cycle = unique_cycles[0]
+        second_cycle = unique_cycles[1]
+        last_cycle = unique_cycles[-1]
+        cycles_used.append((first_cycle, second_cycle, last_cycle))
+
+        first_cycle_data = device_df[device_df['cycle_number'] == first_cycle]
+        second_cycle_data = device_df[device_df['cycle_number'] == second_cycle]
+        last_cycle_data = device_df[device_df['cycle_number'] == last_cycle]
+
+        # Calculate slope between the first and second cycle for each variable
+        for var in variables:
+            if var in device_df.columns and not first_cycle_data[var].empty and not second_cycle_data[var].empty:
+                slope = (second_cycle_data[var].values[0] - first_cycle_data[var].values[0]) / (second_cycle - first_cycle)
+                df_copy.loc[(df_copy['device_id'] == device_id) & (df_copy['cycle_number'] == last_cycle), f'{var}_slope'] = slope
+
+    # Filter to keep only the last cycle data
+    last_cycle_df = df_copy.groupby('device_id').apply(lambda group: group[group['cycle_number'] == group['cycle_number'].max()])
+
+    # Prepare data for correlation matrix
+    columns_to_correlate = [f'{var}_slope' for var in variables if f'{var}_slope' in last_cycle_df.columns]
+    columns_to_correlate += [var for var in variables if var in last_cycle_df.columns]
+
+    correlation_matrix = last_cycle_df[columns_to_correlate].corr()
+
+    x_variables = [f'{var}_slope' for var in variables]
+    y_variables = [
+        'delta_max_min_percentage', 'final_percentage', 'initial_percentage', 
+        'max_percentage', 'min_percentage', 'tint_ten_time', 'tint_five_time', 
+        'tint_one_time',  'tint_ten_a', 
+        'a_initial', 'tint_ten_b', 'b_initial', 'tint_time_eighty_vlt']
+    
+    # Filter out missing x_variables
+    x_variables_filtered = [var for var in x_variables if var in correlation_matrix.columns]
+    # Filter out missing y_variables
+    y_variables_filtered = [var for var in y_variables if var in correlation_matrix.index]
+
+    # Now use the filtered lists
+    correlation_matrix = correlation_matrix.loc[y_variables_filtered, x_variables_filtered]
+    #correlation_matrix = correlation_matrix.loc[y_variables, x_variables]
+
+    strongest_correlations = correlation_matrix.unstack().abs().sort_values(ascending=False).head(5)
+
+    print("\nTop 5 Strongest Correlations:")
+    for (row_var, col_var), corr_value in strongest_correlations.items():
+        print(f"Correlation between {row_var} and {col_var}: {corr_value:.4f}")
+
+    summary_string = f"Devices used: {', '.join(map(str, devices_used))}\n"
+    summary_string += f"Cycles used (First, Second, Last): {cycles_used}\n"
+
+    # Print the correlation matrix
+    print("\nCorrelation Matrix:")
+    print(correlation_matrix)
+
+    # Extract raw data for top 5 strongest correlations
+    raw_data_tables = []
+    for (row_var, col_var), corr_value in strongest_correlations.items():
+        # Extract relevant data for row_var and col_var
+        if row_var in last_cycle_df.columns and col_var in last_cycle_df.columns:
+            for device_id in last_cycle_df['device_id'].unique():
+                device_last_cycle_data = last_cycle_df[last_cycle_df['device_id'] == device_id]
+                device_first_cycle_data = df[(df['device_id'] == device_id) & (df['cycle_number'] == first_cycle)]
+                device_second_cycle_data = df[(df['device_id'] == device_id) & (df['cycle_number'] == second_cycle)]
+
+                # Combine first, second, and last cycle data into one table
+                raw_data = pd.DataFrame({
+                    'Device ID': [device_id] * 3,
+                    'Cycle': [first_cycle, second_cycle, last_cycle],
+                    row_var: [
+                        device_first_cycle_data[row_var].values[0] if not device_first_cycle_data.empty and row_var in device_first_cycle_data.columns else None,
+                        device_second_cycle_data[row_var].values[0] if not device_second_cycle_data.empty and row_var in device_second_cycle_data.columns else None,
+                        device_last_cycle_data[row_var].values[0] if not device_last_cycle_data.empty and row_var in device_last_cycle_data.columns else None
+                    ],
+                    col_var: [
+                        device_first_cycle_data[col_var].values[0] if not device_first_cycle_data.empty and col_var in device_first_cycle_data.columns else None,
+                        device_second_cycle_data[col_var].values[0] if not device_second_cycle_data.empty and col_var in device_second_cycle_data.columns else None,
+                        device_last_cycle_data[col_var].values[0] if not device_last_cycle_data.empty and col_var in device_last_cycle_data.columns else None
+                    ]
+                })
+
+                # Create description string with device ID and correlation value
+                description = f"Raw Data for Device {device_id} - {row_var} and {col_var} (Correlation: {corr_value:.4f})"
+                raw_data_table = pn.pane.DataFrame(raw_data, name=description)
+                raw_data_tables.append(raw_data_table)
+
+
+    def plot_heatmap(correlation_matrix):
+        if correlation_matrix.empty:
+            # Return an empty message instead of plotting
+            print("Correlation matrix is empty. No heatmap to plot.")
+            return pn.pane.Markdown("### No Data Available for Correlation Heatmap")
+
+        # Otherwise, plot the heatmap
+        fig, ax = plt.subplots(figsize=(12, 8))
+        
+        # Use try-except to handle any potential issues during plotting
+        try:
+            sns.heatmap(correlation_matrix, annot=False, cmap='coolwarm', fmt=".2f", linewidths=0.5, ax=ax)
+            plt.xticks(rotation=45, ha='right')
+            plt.yticks(rotation=0, ha='right', fontsize=5)
+            ax.set_title(f'Correlation Heatmap: Slope vs Last Cycle Absolute Values')
+
+            # Save the figure
+            fig_path = "correlation_heatmap.png"
+            plt.savefig(fig_path)
+            plt.close(fig)  # Close the figure after saving to avoid memory issues
+
+            # Return the plot as a Panel PNG pane
+            return pn.pane.PNG(fig_path, width=600, height=400)
+        except ValueError as e:
+            print(f"Error plotting heatmap: {e}")
+            return pn.pane.Markdown("### Error plotting heatmap. Please check the data.")
+
+    heatmap_pane = plot_heatmap(correlation_matrix)
+
+    return pn.Column(heatmap_pane, summary_string, *raw_data_tables)
+
+# Example usage:
+# layout = correlation_heatmap_with_slope(df)
+
+
+
+
+
+#df = pd.read_csv('/Users/sarahpearce/Documents/dashboards/ec_optics_df.csv')
+#print(df)
+
+#layout = correlation_heatmap_with_slope(df)
+#layout = correlation_heatmap(df)
+#main_content = layout
+#template = pn.template.FastListTemplate(
+#       title='Baseline Reporting Dashboard',
+#        main=main_content,
+#        accent_base_color="#00564a",
+#        header_background="#00564a",
+  #  )
+#template.show()
+def search_trd_name(df, search_string):
+    # Ensure 'trd_name' is treated as string
+    df['trd_name'] = df['trd_name'].astype(str)
+    
+    # Filter rows where 'trd_name' exactly matches the search string
+    filtered_df = df[df['trd_name'] == search_string]
+    
+    # Extract corresponding 'id' values
+    ids = filtered_df['id'].tolist()
+    
+    return ids
+
+def get_trd_devices(conn, cursor, trd_id):
+    if conn and cursor:
+        # Update SQL query to filter by trd_id
+        sql_query = '''
+            SELECT * 
+            FROM tyntdatabase_device
+            WHERE trd_id = %s
+            LIMIT ALL 
+            OFFSET 0;
+        '''
+        # Execute the query with trd_id parameter
+        cursor.execute(sql_query, (trd_id,))
+        devices = cursor.fetchall()
+        column_names = [desc[0] for desc in cursor.description]
+        devices = pd.DataFrame(devices, columns=column_names)
+
+    return devices
+
+def create_dynamic_baseline_and_trd_dialog(df, trds_df, conn, cursor):
+    # Create the application and the main window
+    app = QApplication([])
+    window = QWidget()
+    window.setWindowTitle("Select Experiment and Devices to Plot")
+
+    # Create a layout for the main window
+    main_layout = QVBoxLayout(window)
+
+    # Label and experiment type dropdown
+    experiment_label = QLabel("Experiment Type:")
+    main_layout.addWidget(experiment_label)
+
+    experiment_dropdown = QComboBox()
+    experiment_dropdown.addItems(['TRD', 'Baseline'])  # Two options: TRD and Baseline
+    main_layout.addWidget(experiment_dropdown)
+
+    # Label and second dropdown (either TRD or Baseline versions)
+    label = QLabel("Select a Version:")
+    main_layout.addWidget(label)
+
+    second_dropdown = QComboBox()
+    main_layout.addWidget(second_dropdown)
+    experiment_type = experiment_dropdown.currentText()
+    # Function to update the second dropdown based on experiment type
+    def update_second_dropdown():
+        experiment_type = experiment_dropdown.currentText()
+        second_dropdown.clear()
+        if experiment_type == 'TRD':
+            second_dropdown.addItems(reversed(trds_df['trd_name'].values))
+        elif experiment_type == 'Baseline':
+            second_dropdown.addItems(reversed(df['baseline_version'].values))
+
+    # Connect experiment dropdown's change event to update second dropdown
+    experiment_dropdown.currentTextChanged.connect(update_second_dropdown)
+
+    # Create a scroll area for checkboxes
+    scroll_area = QScrollArea()
+    checkbox_widget = QWidget()
+    checkbox_layout = QVBoxLayout(checkbox_widget)
+    checkbox_widget.setLayout(checkbox_layout)
+    scroll_area.setWidget(checkbox_widget)
+    scroll_area.setWidgetResizable(True)
+    main_layout.addWidget(scroll_area)
+
+    # Function to update checkboxes based on the second dropdown selection
+    def update_checkboxes():
+        # Clear previous checkboxes
+        for i in reversed(range(checkbox_layout.count())):
+            checkbox_layout.itemAt(i).widget().setParent(None)
+
+        category = second_dropdown.currentText()
+        if experiment_dropdown.currentText() == 'TRD':
+            matching_ids = search_trd_name(trds_df, category)  # Assuming you have a search function for TRD
+            trd_id = matching_ids[0]
+            trd_devices = get_trd_devices(conn, cursor, trd_id)
+            device_list = trd_devices['device_name'].values  # Assuming trd_devices has 'device_name' column
+        else:
+            matching_ids = search_baseline_name(df, category)
+            baseline_id = matching_ids[0]
+            baseline_devices = get_baseline_devices(conn, cursor, baseline_id)
+            device_list = baseline_devices['device_name'].values  # Assuming baseline_devices has 'device_name' column
+
+        for device in device_list:
+            checkbox = QCheckBox(device)
+            checkbox.setChecked(True)
+            checkbox_layout.addWidget(checkbox)
+
+    # Connect second dropdown's change event to update the checkboxes
+    second_dropdown.currentTextChanged.connect(update_checkboxes)
+
+    # Initialize the second dropdown and checkboxes for the first time
+    update_second_dropdown()
+    update_checkboxes()
+
+    # Variables to hold the selection
+    selected_version = None
+    selected_devices = []
+
+    # Function to capture the selections
+    def capture_selections():
+        nonlocal selected_version, selected_devices
+        selected_version = second_dropdown.currentText()
+        selected_devices = [checkbox.text() for checkbox in checkbox_widget.findChildren(QCheckBox) if checkbox.isChecked()]
+        print(f"Selected Version: {selected_version}")
+        print(f"Selected Devices: {selected_devices}")
+        app.quit()  # Close the application
+
+    # Create a button to confirm selection
+    button = QPushButton("OK")
+    button.clicked.connect(capture_selections)
+    main_layout.addWidget(button)
+
+    # Adjust the window size based on the contents
+    window.adjustSize()
+
+    # Show the window and execute the application
+    window.show()
+    app.exec()
+
+    # Return the selections after the window is closed
+    return selected_version, selected_devices, experiment_type
