@@ -977,8 +977,8 @@ def main():
     ec_plot_pane_2 = pn.pane.HoloViews(object=hv.Curve([]))
     optics_plot_pane_1 = pn.pane.HoloViews(object=hv.Curve([]))
     optics_plot_pane_2 = pn.pane.HoloViews(object=hv.Curve([]))
-    gif_pane_1 = pn.pane.GIF(sizing_mode='stretch_both', embed=True)
-    gif_pane_2 = pn.pane.GIF(sizing_mode='stretch_both', embed=True)
+    gif_pane_1 = pn.pane.Image(sizing_mode='stretch_both', embed=True)
+    gif_pane_2 = pn.pane.Image(sizing_mode='stretch_both', embed=True)
 
 
     # Generalized callback functions
@@ -1050,9 +1050,9 @@ def main():
             print(f"File does not exist: {file_path}")
             return
         try:
-            # pane.object = file_path  # Set the GIF path
-            pn.pane.Image(file_path, width=600, height=400, align='start')
-
+            print(f"Setting GIF: {file_path}")
+            pane.object = None  # Force refresh
+            pane.object = file_path  # Update the pane with the new GIF
             print(f"Displaying GIF: {file_path}")
         except Exception as e:
             print(f"Error displaying GIF: {e}")
