@@ -31,7 +31,6 @@ import os
 
 # Sarah's mac:  source dashboard_env/bin/activate  
 
-
 hv.extension('bokeh')
 pn.extension()
 

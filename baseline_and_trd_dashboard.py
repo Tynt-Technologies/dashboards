@@ -1256,14 +1256,14 @@ def main():
     # Define the content for the sidebar
     sidebar = pn.Column(
         pn.pane.PNG(logo_path, width=150, height=100),
-            pn.pane.Markdown("### Description of Baseline Run: "),
+            pn.pane.Markdown("### Description of Run: "),
             pn.pane.Markdown('Name: ' + search_string), 
             pn.pane.Markdown("Database Notes: " + notes_string),  
             pn.Column(button1, button2, button3, button4, button5, button6, button7)
     )
 
     template = pn.template.FastListTemplate(
-        title='Baseline Reporting Dashboard',
+        title='Baseline and TRD Reporting Dashboard',
         sidebar=sidebar,
         main=main_content,
         accent_base_color="#00564a",

@@ -255,6 +255,18 @@ def get_all_arbin_folders(directory):
     
     return matching_subfolders
 
+
+def find_matching_jpgs(unique_dirs, keywords):
+    matching_files = []
+    for directory in unique_dirs:
+        for root, _, files in os.walk(directory):
+            for file in files:
+                if file.endswith('.jpg') and all(keyword in file.lower() for keyword in keywords):
+                    matching_files.append(os.path.join(root, file))
+    return matching_files
+
+
+
 def extract_after_substring(path, substring):
     """
     Extract everything after the specified substring in the given path.
